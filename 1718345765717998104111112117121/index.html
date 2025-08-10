@@ -3,18 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎉 Happy Birthday</title>
+<title>Card</title>
 <style>
   html, body {height:100%; margin:0;}
   body {background:#0b0b0f; color:#b6ffb6; font-family: Calibri, 'Segoe UI', Arial, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh;}
-  .card { position:relative; max-width: 960px; width: 96vw; border:1px solid #2a8a57; border-radius:12px; padding:18px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
-  h1 { margin:0 0 12px; }
+  .card { position:relative; max-width: 960px; width: 96vw; border:1px solid #2a8a57; border-radius:12px; padding:14px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
   .viewer { width:100%; min-height: 320px; display:flex; align-items:center; justify-content:center; background:#0b1412; border-radius:10px; overflow:hidden; }
-  .viewer.scroll-mode { overflow:auto; max-height: 82vh; }
+  .viewer.scroll-mode { display:block; max-height:82vh; overflow-y:auto; overflow-x:hidden; }
   video, img, iframe { border:none; border-radius:10px; }
-  /* Image modes */
-  .img-fit { width:100%; height:auto; max-height:82vh; object-fit:contain; }
-  .img-scroll { width:auto; height:auto; max-width:none; max-height:none; }
+  .img-fit { width:100%; height:auto; max-height:82vh; object-fit:contain; display:block; }
+  .img-scroll { width:100%; height:auto; max-width:100%; display:block; }
   .pdf-frame { width:100%; height:70vh; border-radius:10px; }
   .toolbar { margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
@@ -24,12 +22,9 @@
   .seg button { background:#0f1614; padding:8px 10px; border:none; color:#b6ffb6; cursor:pointer; }
   .seg button.active { background:#153325; }
   .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28); display:none; }
-  /* Fade-in + slight zoom */
   @keyframes fadeInZoom { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: scale(1); } }
   .media-anim { animation: fadeInZoom .6s ease both; }
-  /* Confetti canvas on top */
   #confetti { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-  /* Mobile tweaks */
   @media (max-width: 640px) {
     .card { width: 100vw; border-radius:0; border:none; }
     .viewer { min-height: 220px; }
@@ -40,9 +35,7 @@
 <body>
 <div class="card">
   <canvas id="confetti"></canvas>
-  <h1>🎉 Happy Birthday</h1>
   <div id="viewer" class="viewer"></div>
-  <!-- 靜態後備：若偵測不到檔案，至少會顯示這張圖 -->
   <img id="static-fallback" src="../assets/card.png" alt="" style="display:none; width:100%; border-radius:10px;" />
   <div class="toolbar">
     <span id="imgMode" class="seg" style="display:none;">
@@ -94,7 +87,6 @@ function attachMedia(el) {
   v.classList.remove('scroll-mode');
   v.appendChild(el);
   document.getElementById('static-fallback').style.display = 'none';
-  // controls visibility
   const pdfBtn = document.getElementById('pdfBtn');
   const imgMode = document.getElementById('imgMode');
   if (currentType === 'pdf') { pdfBtn.style.display = 'inline-block'; pdfBtn.href = currentSrc; } else { pdfBtn.style.display = 'none'; }
@@ -102,7 +94,6 @@ function attachMedia(el) {
 }
 
 function setImageMode(mode) {
-  // mode: 'fit' | 'scroll'
   const v = document.getElementById('viewer');
   const fitBtn = document.getElementById('fitBtn');
   const scrollBtn = document.getElementById('scrollBtn');
@@ -125,8 +116,6 @@ function setImageMode(mode) {
 }
 
 function autoModeForImage(img) {
-  // If image is very tall (portrait ratio > 1.35) and would be too small when fit,
-  // we still default to 'fit' to avoid意外；但保留使用者上次選擇。
   const saved = localStorage.getItem('card_img_mode');
   if (saved === 'scroll') setImageMode('scroll'); else setImageMode('fit');
 }
@@ -147,6 +136,9 @@ function render(type, src) {
   } else if (type === 'image') {
     const img = document.createElement('img'); img.src = src; img.alt = ''; img.className = 'img-fit';
     currentImgEl = img; attachMedia(img); img.onload = ()=> autoModeForImage(img);
+    img.addEventListener('dblclick', ()=> setImageMode(document.getElementById('viewer').classList.contains('scroll-mode') ? 'fit' : 'scroll'));
+    let lastTap = 0;
+    img.addEventListener('touchend', (e)=>{ const now = Date.now(); if (now - lastTap < 350) { e.preventDefault(); setImageMode(document.getElementById('viewer').classList.contains('scroll-mode') ? 'fit' : 'scroll'); } lastTap = now; }, {passive:false});
   } else if (type === 'pdf') {
     const iframe = document.createElement('iframe'); iframe.src = src; iframe.className = 'pdf-frame'; attachMedia(iframe);
   } else {
@@ -191,18 +183,16 @@ async function detectAndRender() {
   document.getElementById('static-fallback').style.display = 'block';
 }
 
-// Image mode toggle events
 document.addEventListener('click', (e) => {
   if (e.target.id === 'fitBtn') setImageMode('fit');
   if (e.target.id === 'scrollBtn') setImageMode('scroll');
 });
 
-// Share
 document.getElementById('shareBtn').onclick = async () => {
   const url = window.location.href;
   try {
     if (navigator.share) {
-      await navigator.share({ title: 'Happy Birthday', text: '來看看我們的心意！', url });
+      await navigator.share({ title: 'Card', text: '來看看我們的心意！', url });
     } else if (navigator.clipboard) {
       await navigator.clipboard.writeText(url);
       showToast('連結已複製');
@@ -210,10 +200,9 @@ document.getElementById('shareBtn').onclick = async () => {
       const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove(); showToast('連結已複製');
     }
-  } catch(e) { /* user cancelled */ }
+  } catch(e) { }
 };
 
-// Confetti (2.6s)
 function runConfetti(duration=2600) {
   const canvas = document.getElementById('confetti');
   const ctx = canvas.getContext('2d');
