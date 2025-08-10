@@ -10,12 +10,19 @@
   .card { position:relative; max-width: 960px; width: 96vw; border:1px solid #2a8a57; border-radius:12px; padding:18px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
   h1 { margin:0 0 12px; }
   .viewer { width:100%; min-height: 320px; display:flex; align-items:center; justify-content:center; background:#0b1412; border-radius:10px; overflow:hidden; }
-  video, img, iframe { width:100%; height:auto; border:none; border-radius:10px; }
+  .viewer.scroll-mode { overflow:auto; max-height: 82vh; }
+  video, img, iframe { border:none; border-radius:10px; }
+  /* Image modes */
+  .img-fit { width:100%; height:auto; max-height:82vh; object-fit:contain; }
+  .img-scroll { width:auto; height:auto; max-width:none; max-height:none; }
   .pdf-frame { width:100%; height:70vh; border-radius:10px; }
   .toolbar { margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
   .btn:hover { background:#12221a; }
   .btn[disabled] { opacity:.5; cursor:not-allowed; }
+  .seg { display:inline-flex; border:1px solid #2a8a57; border-radius:10px; overflow:hidden; }
+  .seg button { background:#0f1614; padding:8px 10px; border:none; color:#b6ffb6; cursor:pointer; }
+  .seg button.active { background:#153325; }
   .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28); display:none; }
   /* Fade-in + slight zoom */
   @keyframes fadeInZoom { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: scale(1); } }
@@ -38,6 +45,10 @@
   <!-- 靜態後備：若偵測不到檔案，至少會顯示這張圖 -->
   <img id="static-fallback" src="../assets/card.png" alt="" style="display:none; width:100%; border-radius:10px;" />
   <div class="toolbar">
+    <span id="imgMode" class="seg" style="display:none;">
+      <button id="fitBtn" class="active">適合螢幕</button>
+      <button id="scrollBtn">原始尺寸（可捲動）</button>
+    </span>
     <button id="shareBtn" class="btn">🔗 分享</button>
     <a id="pdfBtn" class="btn" href="#" download style="display:none;">🧾 下載 PDF</a>
   </div>
@@ -49,6 +60,7 @@
 const ASSETS = '../assets/';
 let currentType = null;
 let currentSrc = null;
+let currentImgEl = null;
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -79,16 +91,48 @@ function attachMedia(el) {
   el.classList.add('media-anim');
   const v = document.getElementById('viewer');
   v.innerHTML = '';
+  v.classList.remove('scroll-mode');
   v.appendChild(el);
   document.getElementById('static-fallback').style.display = 'none';
-  // PDF button visibility
+  // controls visibility
   const pdfBtn = document.getElementById('pdfBtn');
-  if (currentType === 'pdf') { pdfBtn.style.display = 'inline-block'; pdfBtn.href = currentSrc; }
-  else { pdfBtn.style.display = 'none'; }
+  const imgMode = document.getElementById('imgMode');
+  if (currentType === 'pdf') { pdfBtn.style.display = 'inline-block'; pdfBtn.href = currentSrc; } else { pdfBtn.style.display = 'none'; }
+  if (currentType === 'image') { imgMode.style.display = 'inline-flex'; } else { imgMode.style.display = 'none'; }
+}
+
+function setImageMode(mode) {
+  // mode: 'fit' | 'scroll'
+  const v = document.getElementById('viewer');
+  const fitBtn = document.getElementById('fitBtn');
+  const scrollBtn = document.getElementById('scrollBtn');
+  if (!currentImgEl) return;
+  if (mode === 'scroll') {
+    v.classList.add('scroll-mode');
+    currentImgEl.classList.remove('img-fit');
+    currentImgEl.classList.add('img-scroll');
+    fitBtn.classList.remove('active');
+    scrollBtn.classList.add('active');
+    localStorage.setItem('card_img_mode', 'scroll');
+  } else {
+    v.classList.remove('scroll-mode');
+    currentImgEl.classList.remove('img-scroll');
+    currentImgEl.classList.add('img-fit');
+    scrollBtn.classList.remove('active');
+    fitBtn.classList.add('active');
+    localStorage.setItem('card_img_mode', 'fit');
+  }
+}
+
+function autoModeForImage(img) {
+  // If image is very tall (portrait ratio > 1.35) and would be too small when fit,
+  // we still default to 'fit' to avoid意外；但保留使用者上次選擇。
+  const saved = localStorage.getItem('card_img_mode');
+  if (saved === 'scroll') setImageMode('scroll'); else setImageMode('fit');
 }
 
 function render(type, src) {
-  currentType = type; currentSrc = src;
+  currentType = type; currentSrc = src; currentImgEl = null;
   if (type === 'youtube') {
     const id = ytId(src);
     const iframe = document.createElement('iframe');
@@ -97,11 +141,12 @@ function render(type, src) {
     iframe.allowFullscreen = true; iframe.style.aspectRatio = '16/9';
     attachMedia(iframe);
   } else if (type === 'video') {
-    const vid = document.createElement('video'); vid.controls = true; vid.playsInline = true;
+    const vid = document.createElement('video'); vid.controls = true; vid.playsInline = true; vid.style.width = '100%'; vid.style.height = 'auto';
     const source = document.createElement('source'); source.src = src; source.type = 'video/mp4';
     vid.appendChild(source); attachMedia(vid);
   } else if (type === 'image') {
-    const img = document.createElement('img'); img.src = src; img.alt = ''; attachMedia(img);
+    const img = document.createElement('img'); img.src = src; img.alt = ''; img.className = 'img-fit';
+    currentImgEl = img; attachMedia(img); img.onload = ()=> autoModeForImage(img);
   } else if (type === 'pdf') {
     const iframe = document.createElement('iframe'); iframe.src = src; iframe.className = 'pdf-frame'; attachMedia(iframe);
   } else {
@@ -146,6 +191,12 @@ async function detectAndRender() {
   document.getElementById('static-fallback').style.display = 'block';
 }
 
+// Image mode toggle events
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'fitBtn') setImageMode('fit');
+  if (e.target.id === 'scrollBtn') setImageMode('scroll');
+});
+
 // Share
 document.getElementById('shareBtn').onclick = async () => {
   const url = window.location.href;
@@ -156,15 +207,14 @@ document.getElementById('shareBtn').onclick = async () => {
       await navigator.clipboard.writeText(url);
       showToast('連結已複製');
     } else {
-      // fallback
       const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove(); showToast('連結已複製');
     }
   } catch(e) { /* user cancelled */ }
 };
 
-// Confetti (2.5s)
-function runConfetti(duration=2500) {
+// Confetti (2.6s)
+function runConfetti(duration=2600) {
   const canvas = document.getElementById('confetti');
   const ctx = canvas.getContext('2d');
   let W,H; function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
@@ -187,13 +237,8 @@ function runConfetti(duration=2500) {
     ctx.clearRect(0,0,W,H);
     parts.forEach(p=>{
       p.x += p.vx; p.y += p.vy; p.a += p.va;
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.a);
-      ctx.fillStyle = p.c;
-      ctx.fillRect(-p.r, -p.r, p.r*2, p.r*2);
-      ctx.restore();
-      // recycle
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.r, -p.r, p.r*2, p.r*2); ctx.restore();
       if (p.y > H + 20) { p.y = -10; p.x = Math.random()*W; }
     });
     if (elapsed < duration) requestAnimationFrame(tick);
