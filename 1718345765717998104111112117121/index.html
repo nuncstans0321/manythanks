@@ -3,29 +3,60 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>🎉 電子賀卡</title>
+<title>🎉 Happy Birthday</title>
 <style>
   html, body {height:100%; margin:0;}
   body {background:#0b0b0f; color:#b6ffb6; font-family: Calibri, 'Segoe UI', Arial, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh;}
-  .card { max-width: 960px; width: 94vw; border:1px solid #2a8a57; border-radius:12px; padding:18px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
+  .card { position:relative; max-width: 960px; width: 96vw; border:1px solid #2a8a57; border-radius:12px; padding:18px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
   h1 { margin:0 0 12px; }
   .viewer { width:100%; min-height: 320px; display:flex; align-items:center; justify-content:center; background:#0b1412; border-radius:10px; overflow:hidden; }
   video, img, iframe { width:100%; height:auto; border:none; border-radius:10px; }
   .pdf-frame { width:100%; height:70vh; border-radius:10px; }
-  .meta { margin-top:8px; font-size:14px; opacity:.8; display:none; }
+  .toolbar { margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
+  .btn:hover { background:#12221a; }
+  .btn[disabled] { opacity:.5; cursor:not-allowed; }
+  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28); display:none; }
+  /* Fade-in + slight zoom */
+  @keyframes fadeInZoom { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: scale(1); } }
+  .media-anim { animation: fadeInZoom .6s ease both; }
+  /* Confetti canvas on top */
+  #confetti { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  /* Mobile tweaks */
+  @media (max-width: 640px) {
+    .card { width: 100vw; border-radius:0; border:none; }
+    .viewer { min-height: 220px; }
+    .pdf-frame { height: 60vh; }
+  }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>🎉 Access Granted</h1>
+  <canvas id="confetti"></canvas>
+  <h1>🎉 Happy Birthday</h1>
   <div id="viewer" class="viewer"></div>
-  <!-- 強化：靜態圖片後備，萬一 JS 探測失敗仍可顯示 -->
-  <img id="static-fallback" src="../assets/card.png" alt="card" style="display:none; width:100%; border-radius:10px;" />
-  <div id="meta" class="meta"></div>
+  <!-- 靜態後備：若偵測不到檔案，至少會顯示這張圖 -->
+  <img id="static-fallback" src="../assets/card.png" alt="" style="display:none; width:100%; border-radius:10px;" />
+  <div class="toolbar">
+    <button id="shareBtn" class="btn">🔗 分享</button>
+    <a id="pdfBtn" class="btn" href="#" download style="display:none;">🧾 下載 PDF</a>
+  </div>
 </div>
+
+<div id="toast" class="toast">已複製連結</div>
 
 <script>
 const ASSETS = '../assets/';
+let currentType = null;
+let currentSrc = null;
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg || '已複製連結';
+  t.style.display = 'block';
+  setTimeout(()=> t.style.display='none', 1200);
+}
+
 async function tryFetch(url, type='text') {
   try { const res = await fetch(url, {cache:'no-store'}); if (!res.ok) return null; return type==='text' ? await res.text() : await res.blob(); }
   catch(e) { return null; }
@@ -43,53 +74,61 @@ function ytId(url) {
   } catch(e) { }
   return null;
 }
-function render(type, src, title) {
-  const v = document.getElementById('viewer'); const meta = document.getElementById('meta');
-  v.innerHTML = ''; meta.textContent = title || ''; meta.style.display = title ? 'block' : 'none';
+
+function attachMedia(el) {
+  el.classList.add('media-anim');
+  const v = document.getElementById('viewer');
+  v.innerHTML = '';
+  v.appendChild(el);
   document.getElementById('static-fallback').style.display = 'none';
+  // PDF button visibility
+  const pdfBtn = document.getElementById('pdfBtn');
+  if (currentType === 'pdf') { pdfBtn.style.display = 'inline-block'; pdfBtn.href = currentSrc; }
+  else { pdfBtn.style.display = 'none'; }
+}
+
+function render(type, src) {
+  currentType = type; currentSrc = src;
   if (type === 'youtube') {
     const id = ytId(src);
     const iframe = document.createElement('iframe');
     iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1`;
     iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
     iframe.allowFullscreen = true; iframe.style.aspectRatio = '16/9';
-    v.appendChild(iframe);
+    attachMedia(iframe);
   } else if (type === 'video') {
     const vid = document.createElement('video'); vid.controls = true; vid.playsInline = true;
     const source = document.createElement('source'); source.src = src; source.type = 'video/mp4';
-    vid.appendChild(source); v.appendChild(vid);
+    vid.appendChild(source); attachMedia(vid);
   } else if (type === 'image') {
-    const img = document.createElement('img'); img.src = src; img.alt = title || 'image'; v.appendChild(img);
+    const img = document.createElement('img'); img.src = src; img.alt = ''; attachMedia(img);
   } else if (type === 'pdf') {
-    const iframe = document.createElement('iframe'); iframe.src = src; iframe.className = 'pdf-frame'; v.appendChild(iframe);
+    const iframe = document.createElement('iframe'); iframe.src = src; iframe.className = 'pdf-frame'; attachMedia(iframe);
   } else {
-    // 最後手段：顯示靜態圖片
     document.getElementById('static-fallback').style.display = 'block';
   }
 }
+
 async function detectAndRender() {
-  // 1) card.json
   const jsonTxt = await tryFetch(ASSETS + 'card.json', 'text');
   if (jsonTxt) {
     try {
       const conf = JSON.parse(jsonTxt);
       const t = (conf.type || 'auto').toLowerCase();
       const s = conf.src || '';
-      const title = conf.title || '';
-      if (t === 'youtube') return render('youtube', s, title);
-      if (t === 'video')   return render('video', s || ASSETS + 'card.mp4', title);
-      if (t === 'image')   return render('image', s || ASSETS + 'card.png', title);
-      if (t === 'pdf')     return render('pdf',   s || ASSETS + 'card.pdf', title);
+      if (t === 'youtube') return render('youtube', s);
+      if (t === 'video')   return render('video', s || ASSETS + 'card.mp4');
+      if (t === 'image')   return render('image', s || ASSETS + 'card.png');
+      if (t === 'pdf')     return render('pdf',   s || ASSETS + 'card.pdf');
       if (s) {
         const ext = s.split('.').pop().toLowerCase();
-        if (ext === 'mp4') return render('video', s, title);
-        if (['png','jpg','jpeg','webp','gif'].includes(ext)) return render('image', s, title);
-        if (ext === 'pdf') return render('pdf', s, title);
-        if (s.includes('youtu')) return render('youtube', s, title);
+        if (ext === 'mp4') return render('video', s);
+        if (['png','jpg','jpeg','webp','gif'].includes(ext)) return render('image', s);
+        if (ext === 'pdf') return render('pdf', s);
+        if (s.includes('youtu')) return render('youtube', s);
       }
     } catch(e) { /* ignore */ }
   }
-  // 2) card.url
   const urlTxt = await tryFetch(ASSETS + 'card.url', 'text');
   if (urlTxt) {
     const u = urlTxt.trim();
@@ -99,21 +138,72 @@ async function detectAndRender() {
     if (['png','jpg','jpeg','webp','gif'].includes(ext)) return render('image', u);
     if (ext === 'pdf') return render('pdf', u);
   }
-  // 3) 固定檔名探測（blob 失敗時 fallback 用 <img> 直接載）
-  const png = await tryFetch(ASSETS + 'card.png', 'blob');
-  if (png) return render('image', ASSETS + 'card.png', 'Simple Card');
-  const jpg = await tryFetch(ASSETS + 'card.jpg', 'blob');
-  if (jpg) return render('image', ASSETS + 'card.jpg', 'Card');
-  const webp = await tryFetch(ASSETS + 'card.webp', 'blob');
-  if (webp) return render('image', ASSETS + 'card.webp', 'Card');
-  const mp4 = await tryFetch(ASSETS + 'card.mp4', 'blob');
-  if (mp4) return render('video', ASSETS + 'card.mp4', 'Video');
-  const pdf = await tryFetch(ASSETS + 'card.pdf', 'blob');
-  if (pdf) return render('pdf', ASSETS + 'card.pdf', 'PDF');
-  // 最後：顯示靜態 fallback（即使 fetch 被擋也能渲染）
+  const png = await tryFetch(ASSETS + 'card.png', 'blob'); if (png) return render('image', ASSETS + 'card.png');
+  const jpg = await tryFetch(ASSETS + 'card.jpg', 'blob'); if (jpg) return render('image', ASSETS + 'card.jpg');
+  const webp = await tryFetch(ASSETS + 'card.webp', 'blob'); if (webp) return render('image', ASSETS + 'card.webp');
+  const mp4 = await tryFetch(ASSETS + 'card.mp4', 'blob'); if (mp4) return render('video', ASSETS + 'card.mp4');
+  const pdf = await tryFetch(ASSETS + 'card.pdf', 'blob'); if (pdf) return render('pdf', ASSETS + 'card.pdf');
   document.getElementById('static-fallback').style.display = 'block';
 }
+
+// Share
+document.getElementById('shareBtn').onclick = async () => {
+  const url = window.location.href;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Happy Birthday', text: '來看看我們的心意！', url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      showToast('連結已複製');
+    } else {
+      // fallback
+      const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); showToast('連結已複製');
+    }
+  } catch(e) { /* user cancelled */ }
+};
+
+// Confetti (2.5s)
+function runConfetti(duration=2500) {
+  const canvas = document.getElementById('confetti');
+  const ctx = canvas.getContext('2d');
+  let W,H; function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+  resize(); window.addEventListener('resize', resize);
+  const colors = ['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
+  const N = 180;
+  const parts = Array.from({length:N}, (_,i)=>({
+    x: Math.random()*W,
+    y: -10 - Math.random()*H*0.3,
+    r: 3 + Math.random()*4,
+    c: colors[i%colors.length],
+    vx: -1 + Math.random()*2,
+    vy: 1 + Math.random()*2.5,
+    a: Math.random()*Math.PI*2,
+    va: -0.2 + Math.random()*0.4
+  }));
+  const start = performance.now();
+  function tick(t) {
+    const elapsed = t - start;
+    ctx.clearRect(0,0,W,H);
+    parts.forEach(p=>{
+      p.x += p.vx; p.y += p.vy; p.a += p.va;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.a);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.r, -p.r, p.r*2, p.r*2);
+      ctx.restore();
+      // recycle
+      if (p.y > H + 20) { p.y = -10; p.x = Math.random()*W; }
+    });
+    if (elapsed < duration) requestAnimationFrame(tick);
+    else { ctx.clearRect(0,0,W,H); }
+  }
+  requestAnimationFrame(tick);
+}
+
 detectAndRender();
+runConfetti(2600);
 </script>
 </body>
 </html>
