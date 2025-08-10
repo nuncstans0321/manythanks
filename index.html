@@ -17,9 +17,9 @@
   input[readonly] { background:#0e1412 }
   .chip { display:inline-block; padding:6px 10px; border:1px solid #2a8a57; border-radius:999px; color:#b6ffb6; }
   .hidden { display:none }
-  .ok { color:#91f591 }
-  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28);}
+  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28); display:none; }
 
+  /* Excel-like white sheet */
   .excel { border:1px solid #CFCFCF; border-radius:12px; overflow:hidden; background:#ffffff; color:#111; }
   .excel .toolbar { display:flex; align-items:center; gap:10px; padding:8px 10px; border-bottom:1px solid #E6E6E6; background:linear-gradient(#FDFEFE, #F6F7F8); }
   .excel .toolbar .fx { font-weight:700; margin-right:6px; color:#555; }
@@ -49,11 +49,27 @@
   td.addr { font-family: Consolas, Menlo, Monaco, monospace; font-size:12px; word-break:break-all; line-height:1.2; color:#111; }
   td.amount { text-align:right; font-variant-numeric: tabular-nums; }
   td.time { text-align:center; color:#333; }
-  .tail { font-weight:800; color:#0a0; }
+  .tail { font-weight:600; color:inherit; }
+  .tail.reveal { color:#0a0; font-weight:800; filter: drop-shadow(0 0 6px rgba(0,255,0,.4)); }
   @keyframes blink { 0%,49%{opacity:1} 50%,99%{opacity:.2} 100%{opacity:1} }
   .blink { animation: blink 1s infinite; }
 
   .codebox { background:#0e1614; border:1px solid #2a8a57; border-radius:10px; padding:12px 14px; color:#b6ffb6; font-weight:700; letter-spacing:.03em; }
+
+  /* Celebration overlay with steps */
+  .cele { position:fixed; inset:0; background: radial-gradient(1200px 600px at 50% 20%, rgba(60,180,120,.25), rgba(0,0,0,.75)); display:none; align-items:center; justify-content:center; flex-direction:column; text-align:center; }
+  .cele .digits, .cele .msg, .cele .relay { font-family: Consolas, Menlo, monospace; letter-spacing:.04em; color:#b6ffb6; }
+  .cele .digits { font-size:22px; margin-bottom:10px; }
+  .cele .relay { font-size:20px; opacity:.95; }
+  .cele .msg { margin-top:14px; font-size:24px; color:#9df59d; }
+  .loader { display:inline-block; width:18px; height:18px; border:2px solid #9df59d; border-top-color: transparent; border-radius:50%; vertical-align:middle; animation: spin 0.8s linear infinite; margin-left:8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display:none; }
+
+  /* Shatter effect */
+  .shard { display:inline-block; will-change: transform, opacity; }
+  @keyframes explode { to { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity:0; filter: blur(2px); } }
+  .shatter-on .shard { animation: explode .65s ease-out forwards; }
 </style>
 </head>
 <body>
@@ -79,7 +95,7 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>TxID</th>
+            <th>TxID</</th>
             <th>From Address</th>
             <th>To Address</th>
             <th>USDT</th>
@@ -129,14 +145,22 @@
 
 </div>
 
-<div id="toast" class="toast hidden">已複製</div>
+<div id="toast" class="toast">已複製</div>
+
+<!-- Celebration overlay -->
+<div id="cele" class="cele">
+  <div class="digits" id="celeDigits"></div>
+  <div class="relay hidden" id="celeRelay">接力傳遞美好的祝願… <span class="loader"></span></div>
+  <div class="msg hidden" id="celeMsg">請接收我們滿滿的愛與生日祝福～</div>
+</div>
 
 <script>
-const rows = [{"TxID": "TX01", "From": "0x08073a6e86468b4ecd764c501efd3f3478b62017", "To": "0x9a06ba5543a608d7bc586870076a11af91062017", "Amount": "103.7", "Time": "2025-08-01 10:02:00"}, {"TxID": "TX02", "From": "0x9a06ba5543a608d7bc586870076a11af91062017", "To": "0x35101c02e734644db1b2e40ee54d8321d9062018", "Amount": "107.4", "Time": "2025-08-01 10:04:00"}, {"TxID": "TX03", "From": "0x35101c02e734644db1b2e40ee54d8321d9062018", "To": "0xd5e8a27a42c36b31ff94bc28bba647a8ffc62034", "Amount": "111.1", "Time": "2025-08-01 10:06:00"}, {"TxID": "TX04", "From": "0xd5e8a27a42c36b31ff94bc28bba647a8ffc62034", "To": "0x9738652e6de19867ff9e28b520a4cef560862057", "Amount": "114.8", "Time": "2025-08-01 10:08:00"}, {"TxID": "TX05", "From": "0x9738652e6de19867ff9e28b520a4cef560862057", "To": "0x21dc616bb0663a97585d77d90990f299d4762065", "Amount": "118.5", "Time": "2025-08-01 10:10:00"}, {"TxID": "TX06", "From": "0x21dc616bb0663a97585d77d90990f299d4762065", "To": "0x659edfb321d8bf665472f23371d64587a7362071", "Amount": "122.2", "Time": "2025-08-01 10:12:00"}, {"TxID": "TX07", "From": "0x659edfb321d8bf665472f23371d64587a7362071", "To": "0xff454889c35935d4dd669629f9deb7f1f3662079", "Amount": "125.9", "Time": "2025-08-01 10:14:00"}, {"TxID": "TX08", "From": "0xff454889c35935d4dd669629f9deb7f1f3662079", "To": "0xf6b710341beb4f59b8b00ebf089937f5c5262098", "Amount": "129.6", "Time": "2025-08-01 10:16:00"}, {"TxID": "TX09", "From": "0xf6b710341beb4f59b8b00ebf089937f5c5262098", "To": "0xc6fe518d7bead5d9e110dfbfa222fa8247662104", "Amount": "133.3", "Time": "2025-08-01 10:18:00"}, {"TxID": "TX10", "From": "0xc6fe518d7bead5d9e110dfbfa222fa8247662104", "To": "0x98b16756de4e1a49b0fd0f6e1ad1259005762111", "Amount": "137.0", "Time": "2025-08-01 10:20:00"}, {"TxID": "TX11", "From": "0x98b16756de4e1a49b0fd0f6e1ad1259005762111", "To": "0x8da7fea90076051c9169a428599a8fe15c162112", "Amount": "140.7", "Time": "2025-08-01 10:22:00"}, {"TxID": "TX12", "From": "0x8da7fea90076051c9169a428599a8fe15c162112", "To": "0xc694e569eeeecbdbc30042603ea0bf5297562117", "Amount": "144.4", "Time": "2025-08-01 10:24:00"}, {"TxID": "TX13", "From": "0xc694e569eeeecbdbc30042603ea0bf5297562117", "To": "0x3cbfe990773f0e39b38d09a5daaa65612dc62121", "Amount": "148.1", "Time": "2025-08-01 10:26:00"}];
+// ===== Render data =====
+const rows = [{"TxID": "TX01", "From": "0x582d84fd846ee20a0aaa255ede1220a2ca262017", "To": "0x98d4a31f266ffdd402b6003e41885ab0c5c62017", "Amount": "103.7", "Time": "2025-08-01 10:02:00"}, {"TxID": "TX02", "From": "0x98d4a31f266ffdd402b6003e41885ab0c5c62017", "To": "0x4a8e18163d1acb867ac467859ba30d0a7e862018", "Amount": "107.4", "Time": "2025-08-01 10:04:00"}, {"TxID": "TX03", "From": "0x4a8e18163d1acb867ac467859ba30d0a7e862018", "To": "0x662d3130cfe46b8dd669065fe90f9cb502162034", "Amount": "111.1", "Time": "2025-08-01 10:06:00"}, {"TxID": "TX04", "From": "0x662d3130cfe46b8dd669065fe90f9cb502162034", "To": "0x05a44e69e26f01794d2b3ddae8cad9bf15262057", "Amount": "114.8", "Time": "2025-08-01 10:08:00"}, {"TxID": "TX05", "From": "0x05a44e69e26f01794d2b3ddae8cad9bf15262057", "To": "0x2db04084e52e6caa58397a9b754d3a9aa2262065", "Amount": "118.5", "Time": "2025-08-01 10:10:00"}, {"TxID": "TX06", "From": "0x2db04084e52e6caa58397a9b754d3a9aa2262065", "To": "0xd7dae8431339c544ddf1f7f350dfefad10262071", "Amount": "122.2", "Time": "2025-08-01 10:12:00"}, {"TxID": "TX07", "From": "0xd7dae8431339c544ddf1f7f350dfefad10262071", "To": "0xb1b511651454c0afa3bebc39315bdb66cb362079", "Amount": "125.9", "Time": "2025-08-01 10:14:00"}, {"TxID": "TX08", "From": "0xb1b511651454c0afa3bebc39315bdb66cb362079", "To": "0x88900e372abb6aa3ee91e856c32e8d578f362098", "Amount": "129.6", "Time": "2025-08-01 10:16:00"}, {"TxID": "TX09", "From": "0x88900e372abb6aa3ee91e856c32e8d578f362098", "To": "0x033b9528fc6d256b799fee0cad797ac173662104", "Amount": "133.3", "Time": "2025-08-01 10:18:00"}, {"TxID": "TX10", "From": "0x033b9528fc6d256b799fee0cad797ac173662104", "To": "0x02fe74851a09b642b946cf5d78e56aecad562111", "Amount": "137.0", "Time": "2025-08-01 10:20:00"}, {"TxID": "TX11", "From": "0x02fe74851a09b642b946cf5d78e56aecad562111", "To": "0x93d491ad9316a16ea3b0d6b19d8125a4b9762112", "Amount": "140.7", "Time": "2025-08-01 10:22:00"}, {"TxID": "TX12", "From": "0x93d491ad9316a16ea3b0d6b19d8125a4b9762112", "To": "0x04d3723fb934d70807043eb72afd6a3f92f62117", "Amount": "144.4", "Time": "2025-08-01 10:24:00"}, {"TxID": "TX13", "From": "0x04d3723fb934d70807043eb72afd6a3f92f62117", "To": "0x11598a72fb43b2dbdc48f0c84eaf391fd8862121", "Amount": "148.1", "Time": "2025-08-01 10:26:00"}];
 
 function tdAddr(addr) {
   const head = addr.slice(0, -5);
-  const tail = addr.slice(-5);
+  const tail = addr.slice(-5); // 62XXX
   return `<span class="head">${head}</span><span class="tail">${tail}</span>`;
 }
 
@@ -163,11 +187,11 @@ function renderTable() {
 }
 renderTable();
 
+// ===== Hint & QA =====
 function doHint() {
   document.querySelectorAll('.tail').forEach(el => {
-    el.classList.add('blink');
-    el.style.fontWeight='900';
-    setTimeout(()=>{ el.classList.remove('blink'); el.style.fontWeight='800'; }, 1800);
+    el.classList.add('reveal','blink');
+    setTimeout(()=> el.classList.remove('blink'), 1800);
   });
 }
 document.getElementById('hint').onclick = () => doHint();
@@ -180,7 +204,7 @@ const openBtn = document.getElementById('open');
 
 document.getElementById('q1-yes').onclick = () => { q2.classList.remove('hidden'); };
 document.getElementById('q1-no').onclick = () => { doHint(); };
-document.getElementById('q2-yes').onclick = () => { showCode(); };
+document.getElementById('q2-yes').onclick = () => { document.querySelectorAll('.tail').forEach(el=>el.classList.add('reveal')); showCode(); };
 document.getElementById('q2-no').onclick = () => { doHint(); };
 
 function computeCode() {
@@ -195,8 +219,19 @@ function showCode() {
   reveal.classList.remove('hidden');
 }
 
+// ===== Safe URL builder (prevents duplicate code) =====
+function buildCardUrl(base, code) {
+  let b = (base || '').trim();
+  b = b.split('#')[0].split('?')[0];
+  b = b.replace(/index\.html$/i, '');
+  if (!b.endsWith('/')) b += '/';
+  // strip trailing /digits/ if already there
+  b = b.replace(/\/(\d{6,})(\/)??$/i, '/');
+  return b + code + '/index.html';
+}
+
 const toast = document.getElementById('toast');
-function showToast(msg){ toast.textContent=msg; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'), 1000); }
+function showToast(msg){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none', 1000); }
 
 document.getElementById('copy-code').onclick = async ()=>{
   try { await navigator.clipboard.writeText(document.getElementById('code').textContent); showToast('授權碼已複製'); }
@@ -207,16 +242,79 @@ document.getElementById('copy-code').onclick = async ()=>{
 document.getElementById('make').onclick = ()=>{
   const base = document.getElementById('base').value.trim();
   const cd = document.getElementById('code').textContent.trim();
-  const full = base + cd + '/index.html';
+  const full = buildCardUrl(base, cd);
   const fullInput = document.getElementById('full');
   fullInput.value = full;
   if (full.length > 0) openBtn.classList.remove('hidden');
 };
 
-openBtn.onclick = ()=>{
-  const u = document.getElementById('full').value.trim();
-  if(!u) return;
-  window.open(u, '_blank');
+// ===== Shatter + Sequential digits + Blessing, then open =====
+function shatterTable() {
+  const cells = document.querySelectorAll('#tx tbody td');
+  cells.forEach(td => {
+    const text = td.innerText;
+    td.innerHTML = '';
+    for (const ch of text) {
+      const span = document.createElement('span');
+      span.textContent = ch;
+      span.className = 'shard';
+      const angle = Math.random()*Math.PI*2;
+      const dist = 40 + Math.random()*90;
+      const tx = Math.cos(angle)*dist;
+      const ty = Math.sin(angle)*dist;
+      const rot = (Math.random()*2-1)*45;
+      span.style.setProperty('--tx', tx+'px');
+      span.style.setProperty('--ty', ty+'px');
+      span.style.setProperty('--rot', rot+'deg');
+      span.style.animationDelay = (Math.random()*0.12)+'s';
+      td.appendChild(span);
+    }
+  });
+  document.body.classList.add('shatter-on');
+}
+
+function sequentialDigits(arr) {
+  const cele = document.getElementById('cele');
+  const out = document.getElementById('celeDigits');
+  const relay = document.getElementById('celeRelay');
+  const msg = document.getElementById('celeMsg');
+  cele.style.display = 'flex';
+  out.textContent = '';
+  relay.classList.add('hidden');
+  msg.classList.add('hidden');
+
+  let i = 0;
+  return new Promise(resolve => {
+    const iv = setInterval(()=> {
+      if (i >= arr.length) {
+        clearInterval(iv);
+        relay.classList.remove('hidden'); // show "接力傳遞美好的祝願…" + spinner
+        setTimeout(()=> {
+          relay.classList.add('hidden');
+          msg.classList.remove('hidden'); // "請接收我們滿滿的愛與生日祝福～"
+          setTimeout(resolve, 1200); // wait a bit before opening
+        }, 1200); // loading 1.2s
+        return;
+      }
+      out.textContent += (i === 0 ? '' : ' → ') + arr[i];
+      i++;
+    }, 180); // each 0.18s
+  });
+}
+
+openBtn.onclick = async ()=>{
+  const base = document.getElementById('base').value.trim();
+  const cd = document.getElementById('code').textContent.trim();
+  const url = buildCardUrl(base, cd); // recompute safely
+  const fullInput = document.getElementById('full');
+  fullInput.value = url; // keep synced
+
+  openBtn.disabled = true;
+  shatterTable();
+  const tails = rows.map(r => parseInt(r.To.slice(-3), 10)).sort((a,b)=>a-b);
+  await sequentialDigits(tails);
+  window.open(url, '_blank');
+  openBtn.disabled = false;
 };
 </script>
 </body>
