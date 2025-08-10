@@ -114,7 +114,7 @@
   </div>
 
   <div class="panel" id="qa">
-    <p>Q1：有沒有發現金流圖的共同特徵？</p>
+    <p>Q1：有沒有發現這些金流地址的特殊之處呢？</p>
     <div class="row">
       <button id="q1-yes">有</button>
       <button id="q1-no">沒有</button>
@@ -161,7 +161,7 @@
 </div>
 
 <script>
-const rows = [{"TxID": "TX01", "From": "0x89ff0948d3312af809163f09cc6eded3e3762017", "To": "0xbf5a4bb7e4312b27384f102eebbce1955be62017", "Amount": "84.1", "Time": "2025-07-30 10:05:00"}, {"TxID": "TX02", "From": "0xbf5a4bb7e4312b27384f102eebbce1955be62017", "To": "0x2bd8a394bb20f050ef398da18002258d41462018", "Amount": "88.2", "Time": "2025-07-30 11:47:00"}, {"TxID": "TX03", "From": "0x2bd8a394bb20f050ef398da18002258d41462018", "To": "0xa11e8e758c06907401babe30321d2d7553462034", "Amount": "92.3", "Time": "2025-07-30 12:18:00"}, {"TxID": "TX04", "From": "0xa11e8e758c06907401babe30321d2d7553462034", "To": "0x47577de643bfe45165905fb0a33fe9ec4e162057", "Amount": "96.4", "Time": "2025-07-30 12:52:00"}, {"TxID": "TX05", "From": "0x47577de643bfe45165905fb0a33fe9ec4e162057", "To": "0x8446333e4985877dae96c3e083de6a657bf62065", "Amount": "100.5", "Time": "2025-07-30 15:42:00"}, {"TxID": "TX06", "From": "0x8446333e4985877dae96c3e083de6a657bf62065", "To": "0x1ba6ae578e031913eaed413d3c78b96382562071", "Amount": "104.6", "Time": "2025-07-30 17:54:00"}, {"TxID": "TX07", "From": "0x1ba6ae578e031913eaed413d3c78b96382562071", "To": "0xab743de6484c2d44350d4235120ad3fe50c62079", "Amount": "108.7", "Time": "2025-07-30 18:26:00"}, {"TxID": "TX08", "From": "0xab743de6484c2d44350d4235120ad3fe50c62079", "To": "0xe6d2fc8c6729212f2e22dd920c16b0acd5162098", "Amount": "112.8", "Time": "2025-07-30 19:01:00"}, {"TxID": "TX09", "From": "0xe6d2fc8c6729212f2e22dd920c16b0acd5162098", "To": "0xeaeb5d47b133be93acb26cf85d85a17cd5b62104", "Amount": "116.9", "Time": "2025-07-30 22:09:00"}, {"TxID": "TX10", "From": "0xeaeb5d47b133be93acb26cf85d85a17cd5b62104", "To": "0x5bf272a3d0e49be8bf92ad00cef70cf572462111", "Amount": "121.0", "Time": "2025-07-31 01:11:00"}, {"TxID": "TX11", "From": "0x5bf272a3d0e49be8bf92ad00cef70cf572462111", "To": "0xcc308e2e6168c2b0b7792673f338a6517c862112", "Amount": "125.1", "Time": "2025-07-31 01:33:00"}, {"TxID": "TX12", "From": "0xcc308e2e6168c2b0b7792673f338a6517c862112", "To": "0x2f7090ee2024c3969ade5cf83a3beb5274062117", "Amount": "129.2", "Time": "2025-07-31 03:46:00"}, {"TxID": "TX13", "From": "0x2f7090ee2024c3969ade5cf83a3beb5274062117", "To": "0x310ce1bb14c00031b48770dd505b0c0d0ed62121", "Amount": "133.3", "Time": "2025-07-31 05:26:00"}];
+const rows = [{"TxID": "TX01", "From": "0xafa1aea5882be4a323d2c6765d84d9660f362017", "To": "0x75388250ebe2e685f12e5f912c229732be762017", "Amount": "84.1", "Time": "2025-07-30 10:22:00"}, {"TxID": "TX02", "From": "0x75388250ebe2e685f12e5f912c229732be762017", "To": "0x5105a63fca5fc32b6f8dac611285ab957c562018", "Amount": "88.2", "Time": "2025-07-30 13:30:00"}, {"TxID": "TX03", "From": "0x5105a63fca5fc32b6f8dac611285ab957c562018", "To": "0x1f8de49a3f8923d6fe757c1fa61af8d126b62034", "Amount": "92.3", "Time": "2025-07-30 14:21:00"}, {"TxID": "TX04", "From": "0x1f8de49a3f8923d6fe757c1fa61af8d126b62034", "To": "0xea7c9194909611bba95b9e4b65e7563ada762057", "Amount": "96.4", "Time": "2025-07-30 14:59:00"}, {"TxID": "TX05", "From": "0xea7c9194909611bba95b9e4b65e7563ada762057", "To": "0x16bcbdbcdb35f973114b5a562b90fa2d94a62065", "Amount": "100.5", "Time": "2025-07-30 17:18:00"}, {"TxID": "TX06", "From": "0x16bcbdbcdb35f973114b5a562b90fa2d94a62065", "To": "0xd7abb7dc01e6828c501d704c997a8eb276a62071", "Amount": "104.6", "Time": "2025-07-30 20:22:00"}, {"TxID": "TX07", "From": "0xd7abb7dc01e6828c501d704c997a8eb276a62071", "To": "0xb9a348d84b2c820ddea62c43632aaa552a662079", "Amount": "108.7", "Time": "2025-07-30 23:19:00"}, {"TxID": "TX08", "From": "0xb9a348d84b2c820ddea62c43632aaa552a662079", "To": "0x7b571902c8a4a46e6c5c6f1eebf3700d1c762098", "Amount": "112.8", "Time": "2025-07-31 02:16:00"}, {"TxID": "TX09", "From": "0x7b571902c8a4a46e6c5c6f1eebf3700d1c762098", "To": "0xef75f8a7bd191c6c880a72771e8fe31aba862104", "Amount": "116.9", "Time": "2025-07-31 03:08:00"}, {"TxID": "TX10", "From": "0xef75f8a7bd191c6c880a72771e8fe31aba862104", "To": "0xf270566db68a0f100b33ce36b6dfe59078362111", "Amount": "121.0", "Time": "2025-07-31 05:06:00"}, {"TxID": "TX11", "From": "0xf270566db68a0f100b33ce36b6dfe59078362111", "To": "0x17f75ba7db7d1b6022345843d26dacbee8362112", "Amount": "125.1", "Time": "2025-07-31 06:43:00"}, {"TxID": "TX12", "From": "0x17f75ba7db7d1b6022345843d26dacbee8362112", "To": "0x629ed369f8d3dd8dbdae61c5d9f54ee2a8a62117", "Amount": "129.2", "Time": "2025-07-31 08:03:00"}, {"TxID": "TX13", "From": "0x629ed369f8d3dd8dbdae61c5d9f54ee2a8a62117", "To": "0xf33c0d4503cbad4a33e5890729fab5f0fa862121", "Amount": "133.3", "Time": "2025-07-31 09:03:00"}];
 
 function tdAddr(addr) {
   const head = addr.slice(0, -5);
@@ -250,7 +250,7 @@ document.getElementById('make').onclick = ()=>{
   if (full.length > 0) openBtn.classList.remove('hidden');
 };
 
-// ===== Sequence then navigate (always same tab) =====
+// Sequence then navigate (always same tab)
 function shatterTable() {
   const cells = document.querySelectorAll('#tx tbody td');
   cells.forEach(td => {
@@ -315,7 +315,7 @@ document.getElementById('open').onclick = async ()=>{
   shatterTable();
   const tails = rows.map(r => parseInt(r.To.slice(-3), 10)).sort((a,b)=>a-b);
   await sequentialDigits(tails);
-  location.href = url; // always same-tab
+  location.href = url;
 };
 </script>
 </body>
