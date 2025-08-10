@@ -145,10 +145,6 @@
     </div>
     <div class="row" style="margin-top:8px;">
       <input id="full" readonly style="min-width:520px" placeholder="完整網址將顯示在此…" />
-      <label style="display:flex;align-items:center;gap:6px;">
-        <input type="checkbox" id="newtab" />
-        <span>在新分頁開啟</span>
-      </label>
       <button id="open" class="hidden">開啟我們的心意</button>
     </div>
   </div>
@@ -165,7 +161,7 @@
 </div>
 
 <script>
-const rows = [{"TxID": "TX01", "From": "0x5bea88f2d7f9cbf19353b7d1ab7fce236c862017", "To": "0x46a923b0685e835b3a40873ec1965a7ed9562017", "Amount": "84.1", "Time": "2025-07-30 11:06:00"}, {"TxID": "TX02", "From": "0x46a923b0685e835b3a40873ec1965a7ed9562017", "To": "0xc938ece69cd3bd05b865f35be379912b3a962018", "Amount": "88.2", "Time": "2025-07-30 11:48:00"}, {"TxID": "TX03", "From": "0xc938ece69cd3bd05b865f35be379912b3a962018", "To": "0x883809b94fd3d78d1f3f1a64ed56b5aa14f62034", "Amount": "92.3", "Time": "2025-07-30 13:12:00"}, {"TxID": "TX04", "From": "0x883809b94fd3d78d1f3f1a64ed56b5aa14f62034", "To": "0x72dd49fa45a701d79ee0d821d1db60318ae62057", "Amount": "96.4", "Time": "2025-07-30 14:48:00"}, {"TxID": "TX05", "From": "0x72dd49fa45a701d79ee0d821d1db60318ae62057", "To": "0x8c6b364874dec43ebe64583efddffe4246262065", "Amount": "100.5", "Time": "2025-07-30 16:18:00"}, {"TxID": "TX06", "From": "0x8c6b364874dec43ebe64583efddffe4246262065", "To": "0xe69416f5a57439a3d3bb425f5289309cf1a62071", "Amount": "104.6", "Time": "2025-07-30 18:17:00"}, {"TxID": "TX07", "From": "0xe69416f5a57439a3d3bb425f5289309cf1a62071", "To": "0xf9689d62d7026bbbd31b7be060e39c3435062079", "Amount": "108.7", "Time": "2025-07-30 20:42:00"}, {"TxID": "TX08", "From": "0xf9689d62d7026bbbd31b7be060e39c3435062079", "To": "0x6f7f6f8d0e2a1d19c56b42e6b25a31b848162098", "Amount": "112.8", "Time": "2025-07-30 21:43:00"}, {"TxID": "TX09", "From": "0x6f7f6f8d0e2a1d19c56b42e6b25a31b848162098", "To": "0x2282378f8fe5a99dc1c338db7c22fb2109562104", "Amount": "116.9", "Time": "2025-07-30 22:49:00"}, {"TxID": "TX10", "From": "0x2282378f8fe5a99dc1c338db7c22fb2109562104", "To": "0xde218c2425f814550b512971544880bce4e62111", "Amount": "121.0", "Time": "2025-07-31 00:41:00"}, {"TxID": "TX11", "From": "0xde218c2425f814550b512971544880bce4e62111", "To": "0x3548aa2fc1a4e70235874c5703986bab89262112", "Amount": "125.1", "Time": "2025-07-31 00:54:00"}, {"TxID": "TX12", "From": "0x3548aa2fc1a4e70235874c5703986bab89262112", "To": "0x928161af4d3d0d5824efc1a942db091658f62117", "Amount": "129.2", "Time": "2025-07-31 03:15:00"}, {"TxID": "TX13", "From": "0x928161af4d3d0d5824efc1a942db091658f62117", "To": "0xfe9e6a6c6942d7d6b631e81d8114f236d5362121", "Amount": "133.3", "Time": "2025-07-31 04:11:00"}];
+const rows = [{"TxID": "TX01", "From": "0x89ff0948d3312af809163f09cc6eded3e3762017", "To": "0xbf5a4bb7e4312b27384f102eebbce1955be62017", "Amount": "84.1", "Time": "2025-07-30 10:05:00"}, {"TxID": "TX02", "From": "0xbf5a4bb7e4312b27384f102eebbce1955be62017", "To": "0x2bd8a394bb20f050ef398da18002258d41462018", "Amount": "88.2", "Time": "2025-07-30 11:47:00"}, {"TxID": "TX03", "From": "0x2bd8a394bb20f050ef398da18002258d41462018", "To": "0xa11e8e758c06907401babe30321d2d7553462034", "Amount": "92.3", "Time": "2025-07-30 12:18:00"}, {"TxID": "TX04", "From": "0xa11e8e758c06907401babe30321d2d7553462034", "To": "0x47577de643bfe45165905fb0a33fe9ec4e162057", "Amount": "96.4", "Time": "2025-07-30 12:52:00"}, {"TxID": "TX05", "From": "0x47577de643bfe45165905fb0a33fe9ec4e162057", "To": "0x8446333e4985877dae96c3e083de6a657bf62065", "Amount": "100.5", "Time": "2025-07-30 15:42:00"}, {"TxID": "TX06", "From": "0x8446333e4985877dae96c3e083de6a657bf62065", "To": "0x1ba6ae578e031913eaed413d3c78b96382562071", "Amount": "104.6", "Time": "2025-07-30 17:54:00"}, {"TxID": "TX07", "From": "0x1ba6ae578e031913eaed413d3c78b96382562071", "To": "0xab743de6484c2d44350d4235120ad3fe50c62079", "Amount": "108.7", "Time": "2025-07-30 18:26:00"}, {"TxID": "TX08", "From": "0xab743de6484c2d44350d4235120ad3fe50c62079", "To": "0xe6d2fc8c6729212f2e22dd920c16b0acd5162098", "Amount": "112.8", "Time": "2025-07-30 19:01:00"}, {"TxID": "TX09", "From": "0xe6d2fc8c6729212f2e22dd920c16b0acd5162098", "To": "0xeaeb5d47b133be93acb26cf85d85a17cd5b62104", "Amount": "116.9", "Time": "2025-07-30 22:09:00"}, {"TxID": "TX10", "From": "0xeaeb5d47b133be93acb26cf85d85a17cd5b62104", "To": "0x5bf272a3d0e49be8bf92ad00cef70cf572462111", "Amount": "121.0", "Time": "2025-07-31 01:11:00"}, {"TxID": "TX11", "From": "0x5bf272a3d0e49be8bf92ad00cef70cf572462111", "To": "0xcc308e2e6168c2b0b7792673f338a6517c862112", "Amount": "125.1", "Time": "2025-07-31 01:33:00"}, {"TxID": "TX12", "From": "0xcc308e2e6168c2b0b7792673f338a6517c862112", "To": "0x2f7090ee2024c3969ade5cf83a3beb5274062117", "Amount": "129.2", "Time": "2025-07-31 03:46:00"}, {"TxID": "TX13", "From": "0x2f7090ee2024c3969ade5cf83a3beb5274062117", "To": "0x310ce1bb14c00031b48770dd505b0c0d0ed62121", "Amount": "133.3", "Time": "2025-07-31 05:26:00"}];
 
 function tdAddr(addr) {
   const head = addr.slice(0, -5);
@@ -254,7 +250,7 @@ document.getElementById('make').onclick = ()=>{
   if (full.length > 0) openBtn.classList.remove('hidden');
 };
 
-// ===== Sequence then navigate (respect checkbox) =====
+// ===== Sequence then navigate (always same tab) =====
 function shatterTable() {
   const cells = document.querySelectorAll('#tx tbody td');
   cells.forEach(td => {
@@ -319,14 +315,7 @@ document.getElementById('open').onclick = async ()=>{
   shatterTable();
   const tails = rows.map(r => parseInt(r.To.slice(-3), 10)).sort((a,b)=>a-b);
   await sequentialDigits(tails);
-
-  const preferNewTab = document.getElementById('newtab').checked;
-  if (preferNewTab) {
-    try { window.open(url, '_blank'); }
-    catch(e) { location.href = url; }
-  } else {
-    location.href = url;
-  }
+  location.href = url; // always same-tab
 };
 </script>
 </body>
