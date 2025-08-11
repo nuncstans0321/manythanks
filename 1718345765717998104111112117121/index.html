@@ -1,227 +1,296 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Card</title>
 <style>
-  html, body {height:100%; margin:0;}
-  body {background:#0b0b0f; color:#b6ffb6; font-family: Calibri, 'Segoe UI', Arial, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh;}
-  .card { position:relative; max-width: 960px; width: 96vw; border:1px solid #2a8a57; border-radius:12px; padding:14px; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,.4); background:#0e1614;}
-  .viewer { width:100%; min-height: 320px; display:flex; align-items:center; justify-content:center; background:#0b1412; border-radius:10px; overflow:hidden; }
-  .viewer.scroll-mode { display:block; max-height:82vh; overflow-y:auto; overflow-x:hidden; }
-  video, img, iframe { border:none; border-radius:10px; }
-  .img-fit { width:100%; height:auto; max-height:82vh; object-fit:contain; display:block; }
-  .img-scroll { width:100%; height:auto; max-width:100%; display:block; }
-  .pdf-frame { width:100%; height:70vh; border-radius:10px; }
-  .toolbar { margin-top:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  html, body { height:100%; margin:0; }
+  body { background:#0b0b0f; color:#b6ffb6; font-family: Calibri, 'Segoe UI', Arial, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; }
+  .wrap { width: min(96vw, 1100px); }
+
+  .card { position:relative; border:1px solid #2a8a57; border-radius:12px; padding:14px; background:#0e1614; box-shadow:0 1px 2px rgba(0,0,0,.4); }
+  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; }
+  .hint { color:#9df59d; opacity:.9; font-size:14px; }
+  .ctr { display:flex; align-items:center; gap:8px; }
   .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
   .btn:hover { background:#12221a; }
   .btn[disabled] { opacity:.5; cursor:not-allowed; }
-  .seg { display:inline-flex; border:1px solid #2a8a57; border-radius:10px; overflow:hidden; }
-  .seg button { background:#0f1614; padding:8px 10px; border:none; color:#b6ffb6; cursor:pointer; }
-  .seg button.active { background:#153325; }
-  .toast { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; background:#0e1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 14px; border-radius:999px; box-shadow:0 1px 2px rgba(0,0,0,.28); display:none; }
-  @keyframes fadeInZoom { from { opacity:0; transform: scale(.98); } to { opacity:1; transform: scale(1); } }
-  .media-anim { animation: fadeInZoom .6s ease both; }
-  #confetti { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-  @media (max-width: 640px) {
-    .card { width: 100vw; border-radius:0; border:none; }
-    .viewer { min-height: 220px; }
-    .pdf-frame { height: 60vh; }
+
+  .stage { position:relative; background:#0b1412; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .stage-inner { position:relative; width: min(92vw, 1000px); aspect-ratio: 3/2; /* default ratio; will be refined */ }
+
+  /* Book base */
+  .book { position:absolute; inset:0; perspective:2000px; }
+  .sheet { position:absolute; top:0; left:50%; width:50%; height:100%; transform-style:preserve-3d; transform-origin:left; transition: transform .9s ease; }
+  .sheet .face { position:absolute; inset:0; backface-visibility:hidden; overflow:hidden; background:#111; display:flex; align-items:center; justify-content:center; }
+  .sheet .face img { width:100%; height:100%; object-fit:cover; display:block; }
+  .sheet .back { transform: rotateY(180deg); }
+  .sheet.flipped { transform: translateX(-100%) rotateY(-180deg); } /* fold to left */
+
+  /* Static left & right pads (under the stack) */
+  .pad-left, .pad-right { position:absolute; top:0; width:50%; height:100%; overflow:hidden; }
+  .pad-left { left:0; }
+  .pad-right { right:0; }
+  .pad-left img, .pad-right img { width:100%; height:100%; object-fit:cover; display:block; }
+
+  /* Nav arrows */
+  .nav { position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
+  .arrow { pointer-events:auto; user-select:none; background:rgba(15,22,20,.75); border:1px solid #2a8a57; width:42px; height:42px; border-radius:999px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+  .arrow:hover { background:#13231a; }
+  .nav .prev { margin-left:10px; }
+  .nav .next { margin-right:10px; }
+  .arrow svg { width:20px; height:20px; fill:#b6ffb6; }
+
+  .footer { display:flex; justify-content:center; align-items:center; gap:10px; margin-top:10px; }
+  .pageinfo { font-variant-numeric: tabular-nums; opacity:.85; }
+
+  /* Mobile single-page mode */
+  @media (max-width: 720px) {
+    .stage-inner { aspect-ratio: 3/4; }
+    .pad-left { display:none; }
+    .pad-right { left:0; right:auto; width:100%; }
+    .book { pointer-events:none; } /* use swipe to change instead of clicking on sheets */
+    .nav .prev, .nav .next { opacity:.85; }
   }
+
+  /* Confetti */
+  #confetti { position:absolute; inset:0; pointer-events:none; }
 </style>
 </head>
 <body>
-<div class="card">
-  <canvas id="confetti"></canvas>
-  <div id="viewer" class="viewer"></div>
-  <img id="static-fallback" src="../assets/card.png" alt="" style="display:none; width:100%; border-radius:10px;" />
-  <div class="toolbar">
-    <span id="imgMode" class="seg" style="display:none;">
-      <button id="fitBtn" class="active">適合螢幕</button>
-      <button id="scrollBtn">原始尺寸（可捲動）</button>
-    </span>
-    <button id="shareBtn" class="btn">🔗 分享</button>
-    <a id="pdfBtn" class="btn" href="#" download style="display:none;">🧾 下載 PDF</a>
+<div class="wrap">
+  <div class="card">
+    <div class="topbar">
+      <div class="hint">向左/右翻頁，或用滑動操作（手機）。直接上傳 assets/book/page-01.jpg, page-02.jpg … 即可。</div>
+      <div class="ctr">
+        <button class="btn" id="shareBtn">🔗 分享</button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-inner">
+        <canvas id="confetti"></canvas>
+        <div class="pad-left"><img id="padLeft" alt=""></div>
+        <div class="pad-right"><img id="padRight" alt=""></div>
+        <div class="book" id="book"></div>
+        <div class="nav">
+          <div class="prev arrow" id="prevBtn" title="上一頁">
+            <svg viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          </div>
+          <div class="next arrow" id="nextBtn" title="下一頁">
+            <svg viewBox="0 0 24 24"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="pageinfo"><span id="pageNow">1</span> / <span id="pageTotal">--</span></div>
+    </div>
   </div>
 </div>
 
-<div id="toast" class="toast">已複製連結</div>
+<audio id="flipAudio" preload="auto"></audio>
 
 <script>
-const ASSETS = '../assets/';
-let currentType = null;
-let currentSrc = null;
-let currentImgEl = null;
+const ASSETS = '../assets/book/';
+const EXT_LIST = ['jpg','jpeg','png','webp'];
+let PAGES = []; // list of urls
+let totalPages = 0;
+let sheetIndex = 0; // 0..(sheets-1)
+let sheets = []; // DOM sheets
 
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg || '已複製連結';
-  t.style.display = 'block';
-  setTimeout(()=> t.style.display='none', 1200);
-}
-
-async function tryFetch(url, type='text') {
-  try { const res = await fetch(url, {cache:'no-store'}); if (!res.ok) return null; return type==='text' ? await res.text() : await res.blob(); }
-  catch(e) { return null; }
-}
-function ytId(url) {
+async function headOk(url) {
   try {
-    const u = new URL(url);
-    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1);
-    if (u.hostname.includes('youtube')) {
-      const v = u.searchParams.get('v'); if (v) return v;
-      const parts = u.pathname.split('/').filter(Boolean);
-      const i = parts.indexOf('shorts'); if (i >= 0 && parts[i+1]) return parts[i+1];
-      const j = parts.indexOf('embed'); if (j >= 0 && parts[j+1]) return parts[j+1];
+    const res = await fetch(url, { method:'GET', cache:'no-store' });
+    return res.ok;
+  } catch(e) { return false; }
+}
+
+// Auto-detect pages: page-01..page-60.(jpg|png|webp)
+async function autoDetectPages() {
+  const found = [];
+  for (let i=1; i<=60; i++) {
+    const base = ASSETS + 'page-' + String(i).padStart(2,'0') + '.';
+    let okUrl = null;
+    for (const ext of EXT_LIST) {
+      if (await headOk(base + ext)) { okUrl = base + ext; break; }
     }
-  } catch(e) { }
-  return null;
+    if (okUrl) found.push(okUrl);
+    else break;
+  }
+  return found;
 }
 
-function attachMedia(el) {
-  el.classList.add('media-anim');
-  const v = document.getElementById('viewer');
-  v.innerHTML = '';
-  v.classList.remove('scroll-mode');
-  v.appendChild(el);
-  document.getElementById('static-fallback').style.display = 'none';
-  const pdfBtn = document.getElementById('pdfBtn');
-  const imgMode = document.getElementById('imgMode');
-  if (currentType === 'pdf') { pdfBtn.style.display = 'inline-block'; pdfBtn.href = currentSrc; } else { pdfBtn.style.display = 'none'; }
-  if (currentType === 'image') { imgMode.style.display = 'inline-flex'; } else { imgMode.style.display = 'none'; }
+function byId(id){ return document.getElementById(id); }
+
+function makeSheet(leftUrl, rightUrl, z) {
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.style.zIndex = z;
+  const front = document.createElement('div');
+  front.className = 'face front';
+  const fimg = document.createElement('img');
+  fimg.alt = ''; fimg.src = rightUrl || leftUrl || '';
+  front.appendChild(fimg);
+
+  const back = document.createElement('div');
+  back.className = 'face back';
+  const bimg = document.createElement('img');
+  bimg.alt = ''; bimg.src = (leftUrl ? leftUrl : (rightUrl || ''));
+  back.appendChild(bimg);
+
+  sheet.appendChild(front);
+  sheet.appendChild(back);
+  return sheet;
 }
 
-function setImageMode(mode) {
-  const v = document.getElementById('viewer');
-  const fitBtn = document.getElementById('fitBtn');
-  const scrollBtn = document.getElementById('scrollBtn');
-  if (!currentImgEl) return;
-  if (mode === 'scroll') {
-    v.classList.add('scroll-mode');
-    currentImgEl.classList.remove('img-fit');
-    currentImgEl.classList.add('img-scroll');
-    fitBtn.classList.remove('active');
-    scrollBtn.classList.add('active');
-    localStorage.setItem('card_img_mode', 'scroll');
-  } else {
-    v.classList.remove('scroll-mode');
-    currentImgEl.classList.remove('img-scroll');
-    currentImgEl.classList.add('img-fit');
-    scrollBtn.classList.remove('active');
-    fitBtn.classList.add('active');
-    localStorage.setItem('card_img_mode', 'fit');
+function renderBook() {
+  const book = byId('book');
+  book.innerHTML = '';
+  totalPages = PAGES.length;
+  byId('pageTotal').textContent = totalPages || '--';
+
+  if (!totalPages) {
+    byId('padLeft').style.display = 'none';
+    byId('padRight').style.display = 'none';
+    byId('nextBtn').disabled = true;
+    byId('prevBtn').disabled = true;
+    return;
+  }
+
+  byId('padLeft').src = PAGES[0] || '';
+  byId('padRight').src = PAGES[1] || PAGES[0] || '';
+
+  const totalSheets = Math.ceil(totalPages / 2);
+  sheets = [];
+  for (let s = 0; s < totalSheets; s++) {
+    const leftIndex = s*2;
+    const rightIndex = s*2 + 1;
+    const leftUrl = PAGES[leftIndex] || '';
+    const rightUrl = PAGES[rightIndex] || '';
+    const sheet = makeSheet(leftUrl, rightUrl, (totalSheets - s) + 5);
+    sheets.push(sheet);
+    book.appendChild(sheet);
+  }
+  sheetIndex = 0;
+  updatePageInfo();
+}
+
+function updatePads() {
+  const leftIdx = Math.max(0, sheetIndex*2);
+  const rightIdx = Math.min(PAGES.length-1, sheetIndex*2 + 1);
+  byId('padLeft').src = PAGES[leftIdx] || '';
+  byId('padRight').src = PAGES[rightIdx] || PAGES[leftIdx] || '';
+}
+
+function updatePageInfo() {
+  const now = Math.min(PAGES.length, sheetIndex*2 + 1);
+  byId('pageNow').textContent = String(now || 1);
+}
+
+function canNext() { return sheetIndex < sheets.length; }
+function canPrev() { return sheetIndex > 0; }
+
+// --- Flip sound ---
+const flipAudio = byId('flipAudio');
+async function setupFlipSound() {
+  // Try external files first
+  let tried = false;
+  for (const name of ['flip.mp3', 'flip.wav', 'flip.ogg']) {
+    const url = ASSETS + name;
+    if (await headOk(url)) { flipAudio.src = url; tried = true; break; }
+  }
+  if (!tried) {
+    // fallback to embedded wav
+    flipAudio.src = 'data:audio/wav;base64,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';
   }
 }
+function playFlip() { try { flipAudio.currentTime = 0; flipAudio.play(); } catch(e) {} }
 
-function autoModeForImage(img) {
-  const saved = localStorage.getItem('card_img_mode');
-  if (saved === 'scroll') setImageMode('scroll'); else setImageMode('fit');
+function nextPage() {
+  if (!canNext()) return;
+  const sheet = sheets[sheetIndex];
+  sheet.classList.add('flipped');
+  sheet.style.zIndex = (5 + sheetIndex);
+  sheetIndex++;
+  updatePads();
+  updatePageInfo();
+  playFlip();
+}
+function prevPage() {
+  if (!canPrev()) return;
+  sheetIndex--;
+  const sheet = sheets[sheetIndex];
+  sheet.classList.remove('flipped');
+  sheet.style.zIndex = (sheets.length - sheetIndex) + 5;
+  updatePads();
+  updatePageInfo();
+  playFlip();
 }
 
-function render(type, src) {
-  currentType = type; currentSrc = src; currentImgEl = null;
-  if (type === 'youtube') {
-    const id = ytId(src);
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1`;
-    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-    iframe.allowFullscreen = true; iframe.style.aspectRatio = '16/9';
-    attachMedia(iframe);
-  } else if (type === 'video') {
-    const vid = document.createElement('video'); vid.controls = true; vid.playsInline = true; vid.style.width = '100%'; vid.style.height = 'auto';
-    const source = document.createElement('source'); source.src = src; source.type = 'video/mp4';
-    vid.appendChild(source); attachMedia(vid);
-  } else if (type === 'image') {
-    const img = document.createElement('img'); img.src = src; img.alt = ''; img.className = 'img-fit';
-    currentImgEl = img; attachMedia(img); img.onload = ()=> autoModeForImage(img);
-    img.addEventListener('dblclick', ()=> setImageMode(document.getElementById('viewer').classList.contains('scroll-mode') ? 'fit' : 'scroll'));
-    let lastTap = 0;
-    img.addEventListener('touchend', (e)=>{ const now = Date.now(); if (now - lastTap < 350) { e.preventDefault(); setImageMode(document.getElementById('viewer').classList.contains('scroll-mode') ? 'fit' : 'scroll'); } lastTap = now; }, {passive:false});
-  } else if (type === 'pdf') {
-    const iframe = document.createElement('iframe'); iframe.src = src; iframe.className = 'pdf-frame'; attachMedia(iframe);
-  } else {
-    document.getElementById('static-fallback').style.display = 'block';
-  }
+function bindNav() {
+  byId('nextBtn').onclick = ()=> nextPage();
+  byId('prevBtn').onclick = ()=> prevPage();
+
+  // keyboard
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'ArrowRight') nextPage();
+    if (e.key === 'ArrowLeft') prevPage();
+  });
+
+  // touch swipe
+  let startX = null, startY = null, t0 = 0;
+  const stage = document.querySelector('.stage-inner');
+  stage.addEventListener('touchstart', (e)=>{
+    if (!e.touches || !e.touches.length) return;
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY; t0 = Date.now();
+  }, {passive:true});
+  stage.addEventListener('touchend', (e)=>{
+    if (startX == null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    const dt = Date.now() - t0;
+    startX = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) && dt < 600) {
+      if (dx < 0) nextPage(); else prevPage();
+    }
+  });
 }
 
-async function detectAndRender() {
-  const jsonTxt = await tryFetch(ASSETS + 'card.json', 'text');
-  if (jsonTxt) {
-    try {
-      const conf = JSON.parse(jsonTxt);
-      const t = (conf.type || 'auto').toLowerCase();
-      const s = conf.src || '';
-      if (t === 'youtube') return render('youtube', s);
-      if (t === 'video')   return render('video', s || ASSETS + 'card.mp4');
-      if (t === 'image')   return render('image', s || ASSETS + 'card.png');
-      if (t === 'pdf')     return render('pdf',   s || ASSETS + 'card.pdf');
-      if (s) {
-        const ext = s.split('.').pop().toLowerCase();
-        if (ext === 'mp4') return render('video', s);
-        if (['png','jpg','jpeg','webp','gif'].includes(ext)) return render('image', s);
-        if (ext === 'pdf') return render('pdf', s);
-        if (s.includes('youtu')) return render('youtube', s);
-      }
-    } catch(e) { /* ignore */ }
-  }
-  const urlTxt = await tryFetch(ASSETS + 'card.url', 'text');
-  if (urlTxt) {
-    const u = urlTxt.trim();
-    if (u.includes('youtu')) return render('youtube', u);
-    const ext = u.split('.').pop().toLowerCase();
-    if (ext === 'mp4') return render('video', u);
-    if (['png','jpg','jpeg','webp','gif'].includes(ext)) return render('image', u);
-    if (ext === 'pdf') return render('pdf', u);
-  }
-  const png = await tryFetch(ASSETS + 'card.png', 'blob'); if (png) return render('image', ASSETS + 'card.png');
-  const jpg = await tryFetch(ASSETS + 'card.jpg', 'blob'); if (jpg) return render('image', ASSETS + 'card.jpg');
-  const webp = await tryFetch(ASSETS + 'card.webp', 'blob'); if (webp) return render('image', ASSETS + 'card.webp');
-  const mp4 = await tryFetch(ASSETS + 'card.mp4', 'blob'); if (mp4) return render('video', ASSETS + 'card.mp4');
-  const pdf = await tryFetch(ASSETS + 'card.pdf', 'blob'); if (pdf) return render('pdf', ASSETS + 'card.pdf');
-  document.getElementById('static-fallback').style.display = 'block';
+async function init() {
+  await setupFlipSound();
+  PAGES = await autoDetectPages();
+  renderBook();
+  bindNav();
+  runConfetti(1800);
 }
+init();
 
-document.addEventListener('click', (e) => {
-  if (e.target.id === 'fitBtn') setImageMode('fit');
-  if (e.target.id === 'scrollBtn') setImageMode('scroll');
-});
-
-document.getElementById('shareBtn').onclick = async () => {
-  const url = window.location.href;
+// Share
+byId('shareBtn').onclick = async ()=>{
+  const url = location.href;
   try {
-    if (navigator.share) {
-      await navigator.share({ title: 'Card', text: '來看看我們的心意！', url });
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(url);
-      showToast('連結已複製');
-    } else {
-      const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select();
-      document.execCommand('copy'); ta.remove(); showToast('連結已複製');
-    }
-  } catch(e) { }
+    if (navigator.share) await navigator.share({title:'Card', text:'來看看我們的心意！', url});
+    else if (navigator.clipboard) { await navigator.clipboard.writeText(url); alert('連結已複製'); }
+    else { const ta = document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('連結已複製'); }
+  } catch(e){}
 };
 
-function runConfetti(duration=2600) {
+// Confetti
+function runConfetti(duration=2200) {
   const canvas = document.getElementById('confetti');
   const ctx = canvas.getContext('2d');
-  let W,H; function resize() { W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
-  resize(); window.addEventListener('resize', resize);
+  let W,H; function resize(){ W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
+  resize(); addEventListener('resize', resize);
   const colors = ['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
-  const N = 180;
-  const parts = Array.from({length:N}, (_,i)=>({
-    x: Math.random()*W,
-    y: -10 - Math.random()*H*0.3,
-    r: 3 + Math.random()*4,
-    c: colors[i%colors.length],
-    vx: -1 + Math.random()*2,
-    vy: 1 + Math.random()*2.5,
-    a: Math.random()*Math.PI*2,
-    va: -0.2 + Math.random()*0.4
-  }));
+  const N = 140;
+  const parts = Array.from({length:N}, (_,i)=>({ x: Math.random()*W, y: -10 - Math.random()*H*0.3, r:3+Math.random()*4, c: colors[i%colors.length], vx:-1+Math.random()*2, vy:1+Math.random()*2.5, a:Math.random()*Math.PI*2, va:-0.2+Math.random()*0.4 }));
   const start = performance.now();
-  function tick(t) {
+  function tick(t){
     const elapsed = t - start;
     ctx.clearRect(0,0,W,H);
     parts.forEach(p=>{
@@ -231,13 +300,10 @@ function runConfetti(duration=2600) {
       if (p.y > H + 20) { p.y = -10; p.x = Math.random()*W; }
     });
     if (elapsed < duration) requestAnimationFrame(tick);
-    else { ctx.clearRect(0,0,W,H); }
+    else ctx.clearRect(0,0,W,H);
   }
   requestAnimationFrame(tick);
 }
-
-detectAndRender();
-runConfetti(2600);
 </script>
 </body>
 </html>
