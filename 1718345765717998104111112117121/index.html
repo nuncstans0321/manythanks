@@ -11,23 +11,22 @@
 
   .card { position:relative; border:1px solid #2a8a57; border-radius:12px; padding:14px; background:#0e1614; box-shadow:0 1px 2px rgba(0,0,0,.4); }
   .topbar { display:flex; justify-content:flex-end; align-items:center; margin-bottom:10px; gap:8px; }
-  .ctr { display:flex; align-items:center; gap:8px; }
   .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
   .btn:hover { background:#12221a; }
   .btn[disabled] { opacity:.5; cursor:not-allowed; }
 
   .stage { position:relative; background:#0b1412; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-  .stage-inner { position:relative; width: min(92vw, 1000px); aspect-ratio: 3/2; }
+  .stage-inner { position:relative; width: min(92vw, 900px); aspect-ratio: 3/4; } /* single-page portrait */
 
-  /* Book base */
-  .book { position:absolute; inset:0; perspective:1600px; }
-  .sheet { position:absolute; top:0; left:50%; width:50%; height:100%; transform-style:preserve-3d; transform-origin:left; transition: transform .9s cubic-bezier(.22,.61,.36,1); }
+  /* Book: single sheet stack */
+  .book { position:absolute; inset:0; perspective:1400px; }
+  .sheet { position:absolute; top:0; left:0; width:100%; height:100%; transform-style:preserve-3d; transform-origin:left; transition: transform .9s cubic-bezier(.22,.61,.36,1); }
   .sheet .face { position:absolute; inset:0; backface-visibility:hidden; overflow:hidden; background:#111; display:flex; align-items:center; justify-content:center; }
   .sheet .face img { width:100%; height:100%; object-fit:cover; display:block; }
   .sheet .back { transform: rotateY(180deg); }
 
   /* Page curl shading */
-  .sheet::before, .sheet::after {
+  .sheet::before {
     content:""; position:absolute; inset:-1px; pointer-events:none; border-radius:2px;
     background: radial-gradient(800px 100% at 0% 50%, rgba(0,0,0,.4), rgba(0,0,0,0) 60%);
     opacity:0; transition: opacity .25s linear;
@@ -36,11 +35,9 @@
   .sheet.flipped { transform: translateX(-100%) rotateY(-180deg); }
   .sheet.flipped::before { opacity:0; }
 
-  /* Static pads under the stack */
-  .pad-left, .pad-right { position:absolute; top:0; width:50%; height:100%; overflow:hidden; }
-  .pad-left { left:0; }
-  .pad-right { right:0; }
-  .pad-left img, .pad-right img { width:100%; height:100%; object-fit:cover; display:block; }
+  /* Base page underneath (current visible page) */
+  .basepage { position:absolute; inset:0; }
+  .basepage img { width:100%; height:100%; object-fit:cover; display:block; }
 
   /* Nav arrows */
   .nav { position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
@@ -54,15 +51,6 @@
   .footer { display:flex; justify-content:center; align-items:center; gap:10px; margin-top:10px; }
   .pageinfo { font-variant-numeric: tabular-nums; opacity:.85; }
 
-  /* Mobile single-page mode */
-  @media (max-width: 720px) {
-    .stage-inner { aspect-ratio: 3/4; }
-    .pad-left { display:none; }
-    .pad-right { left:0; right:auto; width:100%; }
-    .book { perspective:1400px; }
-    .sheet { left:0; width:100%; transform-origin:left; }
-  }
-
   /* Confetti */
   #confetti { position:absolute; inset:0; pointer-events:none; }
 </style>
@@ -71,16 +59,13 @@
 <div class="wrap">
   <div class="card">
     <div class="topbar">
-      <div class="ctr">
-        <button class="btn" id="shareBtn">🔗 分享</button>
-      </div>
+      <button class="btn" id="shareBtn">🔗 分享</button>
     </div>
 
     <div class="stage">
       <div class="stage-inner">
         <canvas id="confetti"></canvas>
-        <div class="pad-left"><img id="padLeft" alt=""></div>
-        <div class="pad-right"><img id="padRight" alt=""></div>
+        <div class="basepage"><img id="baseImg" alt=""></div>
         <div class="book" id="book"></div>
         <div class="nav">
           <div class="prev arrow" id="prevBtn" title="上一頁">
@@ -105,12 +90,8 @@
 const ASSETS = '../assets/book/';
 const EXT_LIST = ['jpg','jpeg','png','webp'];
 let PAGES = [];   // list of urls
-let MODE = 'spread'; // 'spread' on desktop, 'single' on mobile
-let sheetIndex = 0;  // flipped sheets count
+let sheetIndex = 0;  // number of flips done (0..sheets)
 let sheets = [];     // DOM sheets
-
-const isMobile = matchMedia('(max-width: 720px)').matches;
-MODE = isMobile ? 'single' : 'spread';
 
 async function headOk(url) {
   try { const res = await fetch(url, { method:'GET', cache:'no-store' }); return res.ok; }
@@ -164,57 +145,29 @@ function renderBook() {
   byId('pageNow').textContent = PAGES.length ? '1' : '0';
 
   if (!PAGES.length) {
-    byId('padLeft').style.display = 'none';
-    byId('padRight').style.display = 'none';
     byId('prevBtn').classList.add('hidden');
     byId('nextBtn').classList.add('hidden');
     return;
   }
 
-  if (MODE === 'spread') {
-    // Pads show first spread
-    byId('padLeft').src = PAGES[0] || '';
-    byId('padRight').src = PAGES[1] || PAGES[0] || '';
-    const totalSheets = Math.ceil(PAGES.length / 2);
-    for (let s=0; s<totalSheets; s++) {
-      const leftIndex = s*2;
-      const rightIndex = s*2 + 1;
-      const sheet = makeSheet(PAGES[leftIndex] || '', PAGES[rightIndex] || '', (totalSheets - s) + 5);
-      sheets.push(sheet);
-      book.appendChild(sheet);
-    }
-  } else { // single page mode
-    byId('padLeft').style.display = 'none';
-    byId('padRight').src = PAGES[0];
-    const totalSheets = PAGES.length - 1; // each flip moves from i -> i+1
-    for (let s=0; s<totalSheets; s++) {
-      const left = PAGES[s];      // current page (back side)
-      const right = PAGES[s+1];   // next page (front side)
-      const sheet = makeSheet(left, right, (totalSheets - s) + 5);
-      sheets.push(sheet);
-      book.appendChild(sheet);
-    }
+  // base page shows current image
+  byId('baseImg').src = PAGES[0];
+
+  // Stack of sheets: each sheet flips from page i to page i+1
+  const totalSheets = Math.max(0, PAGES.length - 1);
+  for (let s=0; s<totalSheets; s++) {
+    const left = PAGES[s];      // current page (back side)
+    const right = PAGES[s+1];   // next page (front side)
+    const sheet = makeSheet(left, right, (totalSheets - s) + 5);
+    sheets.push(sheet);
+    book.appendChild(sheet);
   }
   updateNavState();
 }
 
 function currentPageNumber() {
   if (!PAGES.length) return 0;
-  if (MODE === 'spread') return Math.min(PAGES.length, sheetIndex*2 + 1);
   return Math.min(PAGES.length, sheetIndex + 1);
-}
-
-function updatePads() {
-  if (!PAGES.length) return;
-  if (MODE === 'spread') {
-    const leftIdx = Math.min(PAGES.length-1, Math.max(0, sheetIndex*2));
-    const rightIdx = Math.min(PAGES.length-1, sheetIndex*2 + 1);
-    byId('padLeft').src = PAGES[leftIdx] || '';
-    byId('padRight').src = PAGES[rightIdx] || PAGES[leftIdx] || '';
-  } else {
-    const cur = Math.min(PAGES.length-1, sheetIndex);
-    byId('padRight').src = PAGES[cur];
-  }
 }
 
 function updatePageInfo() {
@@ -238,7 +191,8 @@ function nextPage() {
   requestAnimationFrame(()=> sheet.classList.add('flipped'));
   sheet.style.zIndex = (5 + sheetIndex);
   sheetIndex++;
-  updatePads();
+  // update base to reveal next page after flip completes
+  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 450);
   updatePageInfo();
   updateNavState();
   playFlip();
@@ -247,12 +201,14 @@ function nextPage() {
 
 function prevPage() {
   if (atStart()) return;
+  // we need to unflip the previous sheet
   sheetIndex--;
   const sheet = sheets[sheetIndex];
   sheet.classList.add('flipping');
   sheet.classList.remove('flipped');
   sheet.style.zIndex = (sheets.length - sheetIndex) + 5;
-  updatePads();
+  // update base to show the current page after a short delay
+  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 450);
   updatePageInfo();
   updateNavState();
   playFlip();
@@ -297,7 +253,7 @@ async function init(){
   PAGES = await autoDetectPages();
   renderBook();
   bindNav();
-  runConfetti(1400);
+  runConfetti(1200);
 }
 init();
 
@@ -312,13 +268,13 @@ byId('shareBtn').onclick = async ()=>{
 };
 
 // Confetti
-function runConfetti(duration=1800) {
+function runConfetti(duration=1200) {
   const canvas = document.getElementById('confetti');
   const ctx = canvas.getContext('2d');
   let W,H; function resize(){ W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
   resize(); addEventListener('resize', resize);
   const colors = ['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
-  const N = 110;
+  const N = 90;
   const parts = Array.from({length:N}, (_,i)=>({ x: Math.random()*W, y: -10 - Math.random()*H*0.3, r:3+Math.random()*4, c: colors[i%colors.length], vx:-1+Math.random()*2, vy:1+Math.random()*2.5, a:Math.random()*Math.PI*2, va:-0.2+Math.random()*0.4 }));
   const start = performance.now();
   function tick(t){
