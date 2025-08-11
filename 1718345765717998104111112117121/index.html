@@ -16,28 +16,31 @@
   .btn[disabled] { opacity:.5; cursor:not-allowed; }
 
   .stage { position:relative; background:#0b1412; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
-  .stage-inner { position:relative; width: min(92vw, 900px); aspect-ratio: 3/4; } /* single-page portrait */
+  .stage-inner { position:relative; width: min(92vw, 900px); aspect-ratio: 3/4; background:#0b1412; } /* single-page portrait */
 
-  /* Book: single sheet stack */
+  /* Base page underneath (current visible page) */
+  .basepage { position:absolute; inset:0; background:#0b1412; }
+  .basepage img { width:100%; height:100%; object-fit:contain; background:#0b1412; display:block; }
+
+  /* Sheets (for flip animation from current -> next) */
   .book { position:absolute; inset:0; perspective:1400px; }
   .sheet { position:absolute; top:0; left:0; width:100%; height:100%; transform-style:preserve-3d; transform-origin:left; transition: transform .9s cubic-bezier(.22,.61,.36,1); }
-  .sheet .face { position:absolute; inset:0; backface-visibility:hidden; overflow:hidden; background:#111; display:flex; align-items:center; justify-content:center; }
-  .sheet .face img { width:100%; height:100%; object-fit:cover; display:block; }
+  .sheet .face { position:absolute; inset:0; backface-visibility:hidden; overflow:hidden; background:#0b1412; display:flex; align-items:center; justify-content:center; }
+  .sheet .face img { width:100%; height:100%; object-fit:contain; background:#0b1412; display:block; }
   .sheet .back { transform: rotateY(180deg); }
+
+  /* Hide front side while idle so page-02不會蓋住page-01 */
+  .sheet.idle .front { visibility:hidden; }
 
   /* Page curl shading */
   .sheet::before {
     content:""; position:absolute; inset:-1px; pointer-events:none; border-radius:2px;
-    background: radial-gradient(800px 100% at 0% 50%, rgba(0,0,0,.4), rgba(0,0,0,0) 60%);
+    background: radial-gradient(800px 100% at 0% 50%, rgba(0,0,0,.45), rgba(0,0,0,0) 60%);
     opacity:0; transition: opacity .25s linear;
   }
   .sheet.flipping::before { opacity:.55; }
   .sheet.flipped { transform: translateX(-100%) rotateY(-180deg); }
   .sheet.flipped::before { opacity:0; }
-
-  /* Base page underneath (current visible page) */
-  .basepage { position:absolute; inset:0; }
-  .basepage img { width:100%; height:100%; object-fit:cover; display:block; }
 
   /* Nav arrows */
   .nav { position:absolute; inset:0; display:flex; justify-content:space-between; align-items:center; pointer-events:none; }
@@ -116,7 +119,7 @@ function byId(id){ return document.getElementById(id); }
 
 function makeSheet(leftUrl, rightUrl, z) {
   const sheet = document.createElement('div');
-  sheet.className = 'sheet';
+  sheet.className = 'sheet idle'; // idle: hide front until flipping
   sheet.style.zIndex = z;
   const front = document.createElement('div');
   front.className = 'face front';
@@ -187,12 +190,13 @@ function playFlip(){ try{ const a = byId('flipAudio'); a.currentTime = 0; a.play
 function nextPage() {
   if (atEnd()) return;
   const sheet = sheets[sheetIndex];
+  sheet.classList.remove('idle'); // reveal front for animation
   sheet.classList.add('flipping');
   requestAnimationFrame(()=> sheet.classList.add('flipped'));
   sheet.style.zIndex = (5 + sheetIndex);
   sheetIndex++;
-  // update base to reveal next page after flip completes
-  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 450);
+  // update base to reveal next page after flip passes mid point
+  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 420);
   updatePageInfo();
   updateNavState();
   playFlip();
@@ -204,15 +208,17 @@ function prevPage() {
   // we need to unflip the previous sheet
   sheetIndex--;
   const sheet = sheets[sheetIndex];
+  sheet.classList.remove('idle'); // ensure visible for animation
   sheet.classList.add('flipping');
   sheet.classList.remove('flipped');
   sheet.style.zIndex = (sheets.length - sheetIndex) + 5;
   // update base to show the current page after a short delay
-  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 450);
+  setTimeout(()=> { byId('baseImg').src = PAGES[sheetIndex]; }, 420);
   updatePageInfo();
   updateNavState();
   playFlip();
-  setTimeout(()=> sheet.classList.remove('flipping'), 950);
+  // After animation ends, hide the front again so it won't overlay
+  setTimeout(()=> { sheet.classList.remove('flipping'); sheet.classList.add('idle'); }, 950);
 }
 
 function bindNav() {
@@ -253,7 +259,7 @@ async function init(){
   PAGES = await autoDetectPages();
   renderBook();
   bindNav();
-  runConfetti(1200);
+  runConfetti(1000);
 }
 init();
 
@@ -268,13 +274,13 @@ byId('shareBtn').onclick = async ()=>{
 };
 
 // Confetti
-function runConfetti(duration=1200) {
+function runConfetti(duration=1000) {
   const canvas = document.getElementById('confetti');
   const ctx = canvas.getContext('2d');
   let W,H; function resize(){ W = canvas.width = canvas.offsetWidth; H = canvas.height = canvas.offsetHeight; }
   resize(); addEventListener('resize', resize);
   const colors = ['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
-  const N = 90;
+  const N = 80;
   const parts = Array.from({length:N}, (_,i)=>({ x: Math.random()*W, y: -10 - Math.random()*H*0.3, r:3+Math.random()*4, c: colors[i%colors.length], vx:-1+Math.random()*2, vy:1+Math.random()*2.5, a:Math.random()*Math.PI*2, va:-0.2+Math.random()*0.4 }));
   const start = performance.now();
   function tick(t){
