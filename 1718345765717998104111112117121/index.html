@@ -6,39 +6,31 @@
 <title>Card</title>
 <style>
   :root{
-    /* base durations (can be scaled by --spd-scale) */
-    --flip-next-ms: 2080; /* 1.85s * 1.12 ≈ 2.08s */
-    --flip-prev-ms: 2350; /* 2.10s * 1.12 ≈ 2.35s */
-    --spd-scale: 1;       /* user adjustable 0.8 ~ 1.6 */
-    /* easing */
+    --flip-next-ms: 2080;
+    --flip-prev-ms: 2350;
     --ease-next: cubic-bezier(.12,.70,.12,1);
     --ease-prev: cubic-bezier(.15,.75,.10,1);
-    /* curl intensity (user adjustable) */
-    --curl-mult: 1;   /* 0.6=含蓄, 1=標準, 1.4=誇張 */
-    --bend-z: 6px;    /* multiplied in JS */
-    --bend-skew: 3deg;
     --shade-alpha: .42;
     --curl-alpha: .30;
     --edge-shadow-alpha: .40;
+    --bend-z: 6px;
+    --bend-skew: 3deg;
   }
   html, body { height:100%; margin:0; }
   body { background:#0b0b0f; color:#b6ffb6; font-family: Calibri, 'Segoe UI', Arial, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; }
   .wrap { width: min(96vw, 1100px); }
 
   .card { position:relative; border:1px solid #2a8a57; border-radius:12px; padding:12px 12px 10px; background:#0e1614; box-shadow:0 1px 2px rgba(0,0,0,.4); }
-  .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px; }
-  .title { font-size:14px; opacity:.8; }
-  .ctr { display:flex; align-items:center; gap:8px; }
+  .topbar { display:flex; justify-content:flex-end; align-items:center; margin-bottom:8px; gap:8px; }
   .btn { background:#0f1614; color:#b6ffb6; border:1px solid #2a8a57; padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; }
   .btn:hover { background:#12221a; }
-  .btn[disabled] { opacity:.5; cursor:not-allowed; }
 
   .stage { position:relative; background:#0b1412; border-radius:10px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
   .stage-inner { position:relative; width: min(92vw, 900px); aspect-ratio: 3/4; background:#0b1412; }
 
   /* Base image (double-buffer crossfade) */
   .base { position:absolute; inset:0; }
-  .base img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#0b1412; display:block; transition: opacity 260ms ease; }
+  .base img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#0b1412; display:block; transition: opacity 200ms ease; }
   #baseA { opacity:1; }
   #baseB { opacity:0; }
 
@@ -50,7 +42,7 @@
   .sheet .paper img { width:100%; height:100%; object-fit:contain; display:block; background:#0b1412; border-radius:6px; }
   .sheet .back { transform: rotateY(180deg); }
 
-  /* Paper bend animation — keyframes use CSS vars via JS (applied as inline style) */
+  /* Paper bend animation */
   @keyframes bendKF {
     0%   { transform: perspective(1400px) translateZ(0) scaleY(1) skewY(0deg); filter: brightness(1); }
     30%  { transform: perspective(1400px) translateZ(var(--bendZ)) scaleY(.985) skewY(calc(var(--bendSkew)*.4)); filter: brightness(1.02); }
@@ -77,7 +69,7 @@
   .edgeShadow {
     position:absolute; top:0; bottom:0; left:0; width:26%;
     background: linear-gradient(90deg, rgba(0,0,0,var(--edgeAlpha)), rgba(0,0,0,0));
-    pointer-events:none; opacity:0; transition: opacity 240ms linear;
+    pointer-events:none; opacity:0; transition: opacity 200ms linear;
   }
   .edgeShadow.show { opacity:.35; }
 
@@ -115,28 +107,13 @@
 
   /* Confetti (on top) */
   #confetti { position:absolute; inset:0; pointer-events:none; z-index:50; }
-
-  /* Settings panel */
-  .panel { position:fixed; right:14px; top:14px; width: min(92vw, 360px); background:#0f1614; border:1px solid #2a8a57; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.45); padding:14px; display:none; z-index:60; }
-  .panel.open { display:block; }
-  .panel h3 { margin:0 0 10px; font-size:16px; color:#b6ffb6; }
-  .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0; }
-  .row label { font-size:14px; opacity:.9; }
-  input[type="range"] { width: 180px; }
-  .seg { display:flex; gap:6px; }
-  .seg button { padding:6px 10px; border-radius:8px; background:#0b1412; border:1px solid #2a8a57; color:#b6ffb6; cursor:pointer; }
-  .seg button.active { background:#153225; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="card">
     <div class="topbar">
-      <div class="title">翻頁卡片</div>
-      <div class="ctr">
-        <button class="btn" id="gearBtn">⚙️ 設定</button>
-        <button class="btn" id="shareBtn">🔗 分享</button>
-      </div>
+      <button class="btn" id="shareBtn">🔗 分享</button>
     </div>
 
     <div class="stage">
@@ -165,53 +142,60 @@
   </div>
 </div>
 
-<!-- Settings Panel -->
-<div class="panel" id="panel">
-  <h3>翻頁手感設定</h3>
-  <div class="row">
-    <label>速度（80%–160%）</label>
-    <input id="spdRange" type="range" min="0.8" max="1.6" step="0.05" value="1">
-    <span id="spdLab">100%</span>
-  </div>
-  <div class="row">
-    <label>捲曲強度</label>
-    <div class="seg">
-      <button data-curl="0.6">含蓄</button>
-      <button data-curl="1" class="active">標準</button>
-      <button data-curl="1.4">誇張</button>
-    </div>
-  </div>
-  <div class="row" style="justify-content:flex-end;">
-    <button class="btn" id="closePanel">關閉</button>
-  </div>
-</div>
-
 <audio id="flipAudio" preload="auto"></audio>
 
 <script>
 const ASSETS = '../assets/book/';
 const EXT_LIST = ['jpg','jpeg','png','webp'];
 let PAGES = [];   // list of urls
+let PRE = new Map(); // index -> Image element (decoded)
 let sheetIndex = 0;  // number of flips done (0..sheets)
 let sheets = [];     // DOM sheets
 let baseTop = 'A';   // which base img is on top (A/B)
 
-// Defaults (can be scaled by UI)
-let SPD_SCALE = 1.0;
-let CURL_MULT  = 1.0;
-
+// Fixed prefs
+const SPD_SCALE = 1.15; // slower by 15%
+const CURL_MULT  = 1.40; // exaggerated curl
 const BASE_NEXT = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--flip-next-ms')) || 2080;
 const BASE_PREV = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--flip-prev-ms')) || 2350;
 const EASE_NEXT = getComputedStyle(document.documentElement).getPropertyValue('--ease-next') || 'cubic-bezier(.12,.70,.12,1)';
 const EASE_PREV = getComputedStyle(document.documentElement).getPropertyValue('--ease-prev') || 'cubic-bezier(.15,.75,.10,1)';
+const CROSS_NEXT = 0.18; // early swap
+const CROSS_PREV = 0.16;
 
-// crossfade milestones
-const CROSS_NEXT = 0.40;
-const CROSS_PREV = 0.36;
+function durNext(){ return Math.max(300, Math.floor(BASE_NEXT * SPD_SCALE)); }
+function durPrev(){ return Math.max(300, Math.floor(BASE_PREV * SPD_SCALE)); }
 
 async function headOk(url) {
   try { const res = await fetch(url, { method:'GET', cache:'no-store' }); return res.ok; }
   catch(e){ return false; }
+}
+
+function preloadImage(url){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.loading = 'eager';
+    img.decoding = 'sync';
+    img.src = url;
+    if (img.decode){
+      img.decode().then(()=>resolve(img)).catch(()=>resolve(img));
+    } else {
+      img.onload = ()=>resolve(img);
+      img.onerror = ()=>resolve(img);
+    }
+  });
+}
+
+async function ensureDecoded(i){
+  if (PRE.has(i)) return PRE.get(i);
+  const img = await preloadImage(PAGES[i]);
+  PRE.set(i, img);
+  try{
+    const l = document.createElement('link');
+    l.rel = 'preload'; l.as = 'image'; l.href = PAGES[i];
+    document.head.appendChild(l);
+  }catch(e){}
+  return img;
 }
 
 // Auto-detect pages: page-01..page-80
@@ -316,72 +300,79 @@ function crossfadeTo(index){
   const topIsA = (baseTop === 'A');
   const topEl = topIsA ? a : b;
   const bottomEl = topIsA ? b : a;
-  bottomEl.src = PAGES[index];
+  const cached = PRE.get(index);
+  bottomEl.src = cached ? cached.src : PAGES[index];
   bottomEl.style.opacity = '1';
   topEl.style.opacity = '0';
   baseTop = topIsA ? 'B' : 'A';
 }
 
-function durNext(){ return Math.max(300, Math.floor(BASE_NEXT * SPD_SCALE)); }
-function durPrev(){ return Math.max(300, Math.floor(BASE_PREV * SPD_SCALE)); }
-
-function applyCurlVars(sheet){
-  const curlAlpha = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--curl-alpha')) || 0.30) * CURL_MULT;
-  const shadeAlpha= (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--shade-alpha'))|| 0.42) * (0.9 + 0.2*(CURL_MULT-1));
-  const edgeAlpha = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--edge-shadow-alpha'))||0.40) * (0.9 + 0.25*(CURL_MULT-1));
-  const bendZ = (parseFloat((getComputedStyle(document.documentElement).getPropertyValue('--bend-z')||'6px'))) * CURL_MULT;
-  const bendSkew = (parseFloat((getComputedStyle(document.documentElement).getPropertyValue('--bend-skew')||'3deg'))) * CURL_MULT;
-
-  sheet.style.setProperty('--curlAlpha', String(curlAlpha));
-  sheet.style.setProperty('--shadeAlpha', String(shadeAlpha));
-  sheet.style.setProperty('--edgeAlpha', String(edgeAlpha));
-  sheet.style.setProperty('--bendZ', bendZ + 'px');
-  sheet.style.setProperty('--bendSkew', bendSkew + 'deg');
-}
-
-function nextPage() {
+async function nextPage() {
   if (atEnd()) return;
+  const D = Math.max(300, Math.floor((parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--flip-next-ms'))||2080) * 1.15));
   const sheet = sheets[sheetIndex];
-  // apply per-direction easing & duration
-  const D = durNext();
   sheet.style.setProperty('--dur', D+'ms');
   sheet.style.setProperty('--ease', EASE_NEXT);
   sheet.style.transition = `transform ${D}ms ${EASE_NEXT}`;
-  applyCurlVars(sheet);
 
-  sheet.classList.remove('idle'); // reveal front for animation
+  // Ensure next page decoded
+  const nextIndex = sheetIndex + 1;
+  await ensureDecoded(nextIndex);
+
+  // Prepare next base image
+  const bA = byId('baseA'), bB = byId('baseB');
+  const onTopA = (baseTop==='A');
+  const nextEl = onTopA ? bB : bA;
+  const cached = PRE.get(nextIndex);
+  nextEl.src = cached ? cached.src : PAGES[nextIndex];
+  nextEl.style.opacity = '0';
+
+  sheet.classList.remove('idle');
   sheet.classList.add('flipping');
   requestAnimationFrame(()=> sheet.classList.add('flipped'));
   sheet.style.zIndex = (5 + sheetIndex);
   sheetIndex++;
-  // edge shadow hint on base
+
   byId('edgeShadow').classList.add('show');
-  setTimeout(()=> byId('edgeShadow').classList.remove('show'), Math.floor(D*0.5));
-  // crossfade base
-  setTimeout(()=> crossfadeTo(sheetIndex), Math.floor(D * CROSS_NEXT));
+  setTimeout(()=> byId('edgeShadow').classList.remove('show'), Math.floor(D*0.45));
+
+  setTimeout(()=> crossfadeTo(sheetIndex), Math.floor(D * 0.18));
+
   updatePageInfo();
   updateNavState();
   playFlip();
   setTimeout(()=> sheet.classList.remove('flipping'), D + 80);
 }
 
-function prevPage() {
+async function prevPage() {
   if (atStart()) return;
   sheetIndex--;
+  const D = Math.max(300, Math.floor((parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--flip-prev-ms'))||2350) * 1.15));
   const sheet = sheets[sheetIndex];
-  const D = durPrev();
   sheet.style.setProperty('--dur', D+'ms');
   sheet.style.setProperty('--ease', EASE_PREV);
   sheet.style.transition = `transform ${D}ms ${EASE_PREV}`;
-  applyCurlVars(sheet);
+
+  const prevIndex = sheetIndex;
+  await ensureDecoded(prevIndex);
+
+  const bA = byId('baseA'), bB = byId('baseB');
+  const onTopA = (baseTop==='A');
+  const nextEl = onTopA ? bB : bA;
+  const cached = PRE.get(prevIndex);
+  nextEl.src = cached ? cached.src : PAGES[prevIndex];
+  nextEl.style.opacity = '0';
 
   sheet.classList.remove('idle');
   sheet.classList.add('flipping');
   sheet.classList.remove('flipped');
   sheet.style.zIndex = (sheets.length - sheetIndex) + 5;
+
   byId('edgeShadow').classList.add('show');
-  setTimeout(()=> byId('edgeShadow').classList.remove('show'), Math.floor(D*0.5));
-  setTimeout(()=> crossfadeTo(sheetIndex), Math.floor(D * CROSS_PREV));
+  setTimeout(()=> byId('edgeShadow').classList.remove('show'), Math.floor(D*0.45));
+
+  setTimeout(()=> crossfadeTo(sheetIndex), Math.floor(D * 0.16));
+
   updatePageInfo();
   updateNavState();
   playFlip();
@@ -445,42 +436,23 @@ function runConfetti(duration=1400) {
   requestAnimationFrame(tick);
 }
 
-// Settings Panel
-function loadPrefs(){
-  try{
-    const j = JSON.parse(localStorage.getItem('flipPrefs')||'{}');
-    SPD_SCALE = Math.min(1.6, Math.max(0.8, j.spd||1));
-    CURL_MULT = Math.min(1.6, Math.max(0.5, j.curl||1));
-  }catch(e){}
-}
-function savePrefs(){
-  try{ localStorage.setItem('flipPrefs', JSON.stringify({spd: SPD_SCALE, curl: CURL_MULT})); }catch(e){}
-}
-function applyUI(){
-  // update range & label
-  const r = byId('spdRange'); const lab = byId('spdLab');
-  r.value = String(SPD_SCALE); lab.textContent = Math.round(SPD_SCALE*100) + '%';
-  // curl buttons
-  document.querySelectorAll('.seg button').forEach(b=>{
-    b.classList.toggle('active', Math.abs(parseFloat(b.dataset.curl)-CURL_MULT) < 0.05);
-  });
-}
-function bindPanel(){
-  byId('gearBtn').onclick = ()=> byId('panel').classList.add('open');
-  byId('closePanel').onclick = ()=>{ byId('panel').classList.remove('open'); savePrefs(); };
-  const r = byId('spdRange'); const lab = byId('spdLab');
-  r.addEventListener('input', ()=>{ SPD_SCALE = parseFloat(r.value)||1; lab.textContent = Math.round(SPD_SCALE*100)+'%'; savePrefs(); });
-  document.querySelectorAll('.seg button').forEach(b=>{
-    b.onclick = ()=>{ CURL_MULT = parseFloat(b.dataset.curl)||1; applyUI(); savePrefs(); };
-  });
-}
-
 async function init(){
-  loadPrefs(); applyUI(); bindPanel();
   await setupFlipSound();
   PAGES = await autoDetectPages();
+  byId('pageTotal').textContent = PAGES.length || '--';
+
+  // Decode first 3 pages
+  const firstCount = Math.min(3, PAGES.length);
+  for (let i=0; i<firstCount; i++) { await ensureDecoded(i); }
+
   renderBook();
   bindNav();
+
+  // Lazy preload the rest
+  setTimeout(async ()=>{
+    for (let i=firstCount; i<PAGES.length; i++) { ensureDecoded(i); }
+  }, 30);
+
   setTimeout(()=> runConfetti(1600), 150);
   if (document.visibilityState === 'hidden') {
     document.addEventListener('visibilitychange', ()=>{
