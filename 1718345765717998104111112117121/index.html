@@ -4,8 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Card</title>
+<link rel="preload" as="image" href="../assets/book/page-01.png">
+<link rel="preload" as="image" href="../assets/book/page-02.png">
 <style>
-  :root{ --flip-next-ms:2080; --flip-prev-ms:2350; --ease-next:cubic-bezier(.12,.70,.12,1); --ease-prev:cubic-bezier(.15,.75,.10,1); }
+  :root{ --flip-next-ms:2080; --flip-prev-ms:2350; --ease-next:cubic-bezier(.12,.70,.12,1); --ease-prev:cubic-bezier(.15,.75,.10,1) }
   html,body{height:100%;margin:0}
   body{background:#0b0b0f;color:#b6ffb6;font-family:Segoe UI,Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
   #confettiFS{position:fixed;inset:0;pointer-events:none;z-index:100}
@@ -15,10 +17,10 @@
   .btn{background:#0f1614;color:#b6ffb6;border:1px solid #2a8a57;padding:8px 12px;border-radius:10px;cursor:pointer}
   .stage{position:relative;background:#0b1412;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
   .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412; box-sizing:border-box;}
-  /* 桌機版：加大「安全邊」避免長邊貼邊 */
+  /* 桌機：以視窗高為基準給更寬鬆的上下安全邊，避免長邊貼邊 */
   @media (min-width: 900px){
-    .stage-inner{ padding: clamp(18px, 2.4vw, 36px); }
-    .base img, .sheet .paper img{ box-sizing:border-box; padding: clamp(14px, 2.0vw, 28px); }
+    .stage-inner{ padding: clamp(22px, 3vh, 56px) clamp(16px, 2vw, 32px); }
+    .base img, .sheet .paper img{ box-sizing:border-box; padding: clamp(20px, 2.6vh, 48px) clamp(12px, 1.6vw, 28px); }
   }
   .base{position:absolute;inset:0}
   .base img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease;background:#0b1412}
@@ -68,10 +70,11 @@
 <audio id="flipAudio" preload="auto"></audio>
 <script>
 const ASSETS = new URL('../assets/book/', location.href).href;
-const EXT_LIST = ['png','jpg','jpeg','webp'];
-const EASE_NEXT = 'cubic-bezier(.12,.70,.12,1)';
-const EASE_PREV = 'cubic-bezier(.15,.75,.10,1)';
 const SHARE_URL = 'https://nuncstans0321.github.io/manythanks/';
+// 「極速模式」：假設檔名為 page-01.png、page-02.png… 直到缺號為止
+const FAST_PREFIX = 'page-';
+const FAST_EXT = 'png';
+const MAX_PAGES = 200;
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
 function byId(id){return document.getElementById(id)}
 
@@ -87,43 +90,22 @@ function runConfetti(duration=2200){
   requestAnimationFrame(tick);
 }
 
-function firstGuessUrl(){return `${ASSETS}page-01.png`;}
+// 直接顯示第一張
+function firstGuessUrl(){return `${ASSETS}${FAST_PREFIX}01.${FAST_EXT}`;}
 
-async function headOk(url){try{const r=await fetch(url,{method:'HEAD',cache:'reload'});return r.ok}catch(e){return false}}
-
-async function autoDetectPages(){
-  const found=[], found2x=[];
-  // 第一頁
-  const order1=[`${ASSETS}page-01`, `${ASSETS}01`, `${ASSETS}1`];
-  let ok1=null;
-  for(const b of order1){
-    for(const ext of EXT_LIST){
-      const cand=`${b}.${ext}`;
-      if(await headOk(cand)){ ok1=cand; break; }
-    }
-    if(ok1) break;
-  }
-  if(!ok1) return {found, found2x};
-  found.push(ok1);
-  // 其他頁（平行檢索，加速）
-  for(let i=2;i<=200;i++){
-    let ok=null, ok2x=null;
-    const n=String(i), n0=n.padStart(2,'0');
-    const bases=[`${ASSETS}page-${n0}`, `${ASSETS}${n0}`, `${ASSETS}${n}`];
-    // 平行測試三種命名與四種副檔名
-    const candidates=[];
-    for(const b of bases){ for(const ext of EXT_LIST){ candidates.push(`${b}.${ext}`); } }
-    // 依序 HEAD，但用 Promise.any 快速返回第一個成功者
+// 極速掃描（單一命名規則，直到缺號），僅 HEAD 一次/頁
+async function fastScan(){
+  const out = [];
+  for(let i=1;i<=MAX_PAGES;i++){
+    const n = String(i).padStart(2,'0');
+    const url = `${ASSETS}${FAST_PREFIX}${n}.${FAST_EXT}`;
     try{
-      const resp = await Promise.any(candidates.map(u=>headOk(u).then(ok=>ok?u:Promise.reject())));
-      ok = resp;
-    }catch(e){ ok = null; }
-    if(!ok) break;
-    const dot=ok.lastIndexOf('.'); const hi=`${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
-    if(await headOk(hi)) ok2x=hi;
-    found.push(ok); found2x.push(ok2x);
+      const r = await fetch(url,{method:'HEAD',cache:'reload'});
+      if(!r.ok) break;
+      out.push(url);
+    }catch(e){ break; }
   }
-  return {found, found2x};
+  return out;
 }
 
 function setImg(el, url){el.removeAttribute('srcset'); el.src=url}
@@ -143,6 +125,7 @@ function renderBook(){
     sheet.appendChild(f); sheet.appendChild(b); book.appendChild(sheet); sheets.push(sheet);
   }
   updateNav();
+  byId('loader').style.display='none';
 }
 
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
@@ -152,8 +135,8 @@ function updateNav(){byId('prevBtn').classList.toggle('hidden',atStart());byId('
 function crossfadeTo(i){const A=byId('baseA'),B=byId('baseB'),topIsA=(baseTop==='A');const topEl=topIsA?A:B,bottomEl=topIsA?B:A;setImg(bottomEl,PAGES[i]);bottomEl.style.opacity='1';topEl.style.opacity='0';baseTop=topIsA?'B':'A'}
 function playFlip(){const a=byId('flipAudio');try{a.currentTime=0;a.play()}catch(e){}}
 
-async function nextPage(){ if(atEnd())return; const D=2080*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_NEXT}`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
-async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_PREV}`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
+async function nextPage(){ if(atEnd())return; const D=2080*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms cubic-bezier(.12,.70,.12,1)`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
+async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms cubic-bezier(.15,.75,.10,1)`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
 
 function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclick=()=>prevPage();
   document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage()});
@@ -162,18 +145,18 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-// 🚀 極速首屏：第一張立刻顯示；loader 提前關閉；掃描在背景並行
+// 啟動：
+// 1) 立即顯示第一張
+// 2) 並行極速掃描（單一命名規則）→ 渲染
 (async function fastBoot(){
   runConfetti(2200);
   const loader = byId('loader');
   const img = byId('baseA');
   img.src = firstGuessUrl();
-  // 第一張載入就先關 loading（最多 1.8s 保險關）
-  const safeClose = setTimeout(()=> loader.style.display='none', 1800);
-  img.addEventListener('load', ()=>{ loader.style.display='none'; clearTimeout(safeClose); }, {once:true});
+  const closeSoon = setTimeout(()=> loader.style.display='none', 1600);
+  img.addEventListener('load', ()=>{ loader.style.display='none'; clearTimeout(closeSoon); }, {once:true});
 
-  const det = await autoDetectPages();
-  PAGES = det.found;
+  PAGES = await fastScan();
   byId('pageTotal').textContent = PAGES.length || '—';
   renderBook();
   bindNav();
