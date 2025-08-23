@@ -17,7 +17,7 @@
   .btn{background:#0f1614;color:#b6ffb6;border:1px solid #2a8a57;padding:8px 12px;border-radius:10px;cursor:pointer}
   .stage{position:relative;background:#0b1412;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
   .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412; box-sizing:border-box;}
-  /* 桌機：以視窗高為基準給更寬鬆的上下安全邊，避免長邊貼邊 */
+  /* 桌機安全邊（避免長邊貼上緣） */
   @media (min-width: 900px){
     .stage-inner{ padding: clamp(22px, 3vh, 56px) clamp(16px, 2vw, 32px); }
     .base img, .sheet .paper img{ box-sizing:border-box; padding: clamp(20px, 2.6vh, 48px) clamp(12px, 1.6vw, 28px); }
@@ -52,7 +52,7 @@
     <div class="topbar"><button id="shareBtn" class="btn">🔗 分享</button></div>
     <div class="stage">
       <div class="stage-inner">
-        <div class="loader" id="loader"><div class="box"><div class="spinner"></div><div class="loadingText">Loading…</div></div></div>
+        <div class="loader" id="loader"><div class="box"><div class="spinner"></div><div class="loadingText">祝福太多，請耐心等候加載...</div></div></div>
         <div class="base">
           <img id="baseA" alt="" loading="eager" fetchpriority="high" decoding="async">
           <img id="baseB" alt="" loading="eager" fetchpriority="low" decoding="async">
@@ -71,15 +71,15 @@
 <script>
 const ASSETS = new URL('../assets/book/', location.href).href;
 const SHARE_URL = 'https://nuncstans0321.github.io/manythanks/';
-// 「極速模式」：假設檔名為 page-01.png、page-02.png… 直到缺號為止
-const FAST_PREFIX = 'page-';
+const FAST_PREFIX = 'page-';   // 你的命名：page-01.png, page-02.png ...
 const FAST_EXT = 'png';
 const MAX_PAGES = 200;
+
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
 function byId(id){return document.getElementById(id)}
 
 // 彩花（載入中也會跑）
-function runConfetti(duration=2200){
+function runConfetti(duration=2400){
   const c=byId('confettiFS'),x=c.getContext('2d');
   function rs(){c.width=innerWidth;c.height=innerHeight} rs(); addEventListener('resize',rs);
   const cols=['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
@@ -93,7 +93,7 @@ function runConfetti(duration=2200){
 // 直接顯示第一張
 function firstGuessUrl(){return `${ASSETS}${FAST_PREFIX}01.${FAST_EXT}`;}
 
-// 極速掃描（單一命名規則，直到缺號），僅 HEAD 一次/頁
+// 極速掃描（HEAD 一次/頁）
 async function fastScan(){
   const out = [];
   for(let i=1;i<=MAX_PAGES;i++){
@@ -106,6 +106,16 @@ async function fastScan(){
     }catch(e){ break; }
   }
   return out;
+}
+
+// 確認圖片已載入
+function preload(url){
+  return new Promise(res=>{
+    const im = new Image();
+    im.onload = im.onerror = ()=>res(true);
+    im.decoding = 'async'; im.loading='eager';
+    im.src = url;
+  });
 }
 
 function setImg(el, url){el.removeAttribute('srcset'); el.src=url}
@@ -125,7 +135,6 @@ function renderBook(){
     sheet.appendChild(f); sheet.appendChild(b); book.appendChild(sheet); sheets.push(sheet);
   }
   updateNav();
-  byId('loader').style.display='none';
 }
 
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
@@ -145,20 +154,26 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-// 啟動：
-// 1) 立即顯示第一張
-// 2) 並行極速掃描（單一命名規則）→ 渲染
-(async function fastBoot(){
-  runConfetti(2200);
+// 啟動：Loading 保留到「可以開始翻頁」為止
+(async function boot(){
+  runConfetti(2400);
   const loader = byId('loader');
-  const img = byId('baseA');
-  img.src = firstGuessUrl();
-  const closeSoon = setTimeout(()=> loader.style.display='none', 1600);
-  img.addEventListener('load', ()=>{ loader.style.display='none'; clearTimeout(closeSoon); }, {once:true});
+  // 先顯示第一張在背後，但不關 loader
+  const first = firstGuessUrl();
+  byId('baseA').src = first;
 
+  // 極速掃描，取得所有頁
   PAGES = await fastScan();
   byId('pageTotal').textContent = PAGES.length || '—';
   renderBook();
+
+  // 🔒 確認「能開始翻頁」：至少第 1、2 頁皆可用（若只有 1 頁，則只等第 1 頁）
+  const need = [PAGES[0]];
+  if (PAGES.length >= 2) need.push(PAGES[1]);
+  await Promise.all(need.map(preload));
+
+  // ✅ 關閉 Loading，綁定操作
+  loader.style.display='none';
   bindNav();
 })();
 
