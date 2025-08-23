@@ -8,12 +8,19 @@
   :root{ --flip-next-ms:2080; --flip-prev-ms:2350; --ease-next:cubic-bezier(.12,.70,.12,1); --ease-prev:cubic-bezier(.15,.75,.10,1); }
   html,body{height:100%;margin:0}
   body{background:#0b0b0f;color:#b6ffb6;font-family:Segoe UI,Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
+  /* 全螢幕彩花 */
+  #confettiFS{position:fixed;inset:0;pointer-events:none;z-index:100}
   .wrap{width:min(92vw,980px)}
   .card{position:relative;border:1px solid #2a8a57;border-radius:12px;padding:10px;background:#0e1614;box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .topbar{display:flex;justify-content:flex-end;margin-bottom:8px}
   .btn{background:#0f1614;color:#b6ffb6;border:1px solid #2a8a57;padding:8px 12px;border-radius:10px;cursor:pointer}
+  .btn:hover{background:#12221a}
   .stage{position:relative;background:#0b1412;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-  .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412}
+  .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412; box-sizing:border-box;}
+  /* 只有桌機留更寬鬆邊距，避免長邊貼邊 */
+  @media (min-width: 900px){
+    .stage-inner{padding:14px}
+  }
   .base{position:absolute;inset:0}
   .base img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease;background:#0b1412}
   #baseA{opacity:1} #baseB{opacity:0}
@@ -30,19 +37,23 @@
   .arrow.hidden{visibility:hidden}
   .footer{display:flex;justify-content:center;gap:10px;margin-top:8px}
   .pageinfo{font-variant-numeric:tabular-nums;opacity:.85}
-  .spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
-  .spinner:after{content:"";width:32px;height:32px;border:3px solid rgba(182,255,182,.25);border-top-color:#b6ffb6;border-radius:50%;animation:sp 1s linear infinite}
+  /* Loading Overlay */
+  .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:transparent}
+  .loader .box{display:flex;gap:10px;align-items:center;background:rgba(11,20,18,.66);border:1px solid #2a8a57;padding:10px 14px;border-radius:10px}
+  .spinner{width:18px;height:18px;border:3px solid rgba(182,255,182,.25);border-top-color:#b6ffb6;border-radius:50%;animation:sp 1s linear infinite}
+  .loadingText{font-size:14px;letter-spacing:.3px}
   @keyframes sp{to{transform:rotate(1turn)}}
 </style>
 </head>
 <body>
+<canvas id="confettiFS"></canvas>
 <div class="wrap">
   <div class="card">
     <div class="topbar"><button id="shareBtn" class="btn">🔗 分享</button></div>
     <div class="stage">
       <div class="stage-inner">
+        <div class="loader" id="loader"><div class="box"><div class="spinner"></div><div class="loadingText">Loading…</div></div></div>
         <div class="base">
-          <div class="spinner" id="spinner"></div>
           <img id="baseA" alt="" loading="eager" fetchpriority="high" decoding="async">
           <img id="baseB" alt="" loading="eager" fetchpriority="low" decoding="async">
         </div>
@@ -63,30 +74,33 @@ const ASSETS = new URL('../assets/book/', location.href).href;
 const EXT_LIST = ['png','jpg','jpeg','webp'];
 const EASE_NEXT = 'cubic-bezier(.12,.70,.12,1)';
 const EASE_PREV = 'cubic-bezier(.15,.75,.10,1)';
+const SHARE_URL = 'https://nuncstans0321.github.io/manythanks/';
 // ----------------------------
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
-
 function byId(id){return document.getElementById(id)}
 
-// 先直接顯示猜測的第一張（page-01.png），讓首屏不等待
-function firstGuessUrl(){
-  const n01 = '01';
-  return `${ASSETS}page-${n01}.png`; // 你的命名
+// 全螢幕彩花
+function runConfetti(duration=1800){
+  const c=byId('confettiFS'),x=c.getContext('2d');
+  function rs(){c.width=innerWidth;c.height=innerHeight} rs(); addEventListener('resize',rs);
+  const cols=['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
+  const N=Math.round((c.width*c.height)/30000)+50;
+  const parts=Array.from({length:N},(_,i)=>({x:Math.random()*c.width,y:-10-Math.random()*c.height*.3,r:3+Math.random()*4,c:cols[i%cols.length],vx:-1+Math.random()*2,vy:1+Math.random()*2.5,a:Math.random()*Math.PI*2,va:-.2+Math.random()*.4}));
+  const st=performance.now();
+  function tick(t){const el=t-st;x.clearRect(0,0,c.width,c.height);parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.a+=p.va;x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle=p.c;x.fillRect(-p.r,-p.r,p.r*2,p.r*2);x.restore();if(p.y>c.height+20){p.y=-10;p.x=Math.random()*c.width;}}); if(el<duration)requestAnimationFrame(tick); else x.clearRect(0,0,c.width,c.height);}
+  requestAnimationFrame(tick);
 }
 
-async function headOk(url){
-  try{
-    const r=await fetch(url,{method:'HEAD',cache:'reload'});
-    return r.ok;
-  }catch(e){return false}
-}
+// 先直接顯示猜測的第一張（page-01.png）
+function firstGuessUrl(){return `${ASSETS}page-01.png`;}
 
-// 發現所有頁：優先 page-01.*，成功後再偵測 02… 以此類推
+async function headOk(url){try{const r=await fetch(url,{method:'HEAD',cache:'reload'});return r.ok}catch(e){return false}}
+
+// 偵測所有頁：優先 page-01.* → 01.* → 1.*
 async function autoDetectPages(){
   const found=[], found2x=[];
-  // 先處理 1
-  const n1='1', n01='01';
-  const order1=[`${ASSETS}page-${n01}`, `${ASSETS}${n01}`, `${ASSETS}${n1}`];
+  // 第一頁
+  const order1=[`${ASSETS}page-01`, `${ASSETS}01`, `${ASSETS}1`];
   let ok1=null;
   for(const b of order1){
     for(const ext of EXT_LIST){
@@ -95,13 +109,13 @@ async function autoDetectPages(){
     }
     if(ok1) break;
   }
-  if(!ok1) return {found, found2x}; // 沒圖就空
+  if(!ok1) return {found, found2x};
   found.push(ok1);
-  // 其餘頁
+  // 後續頁
   for(let i=2;i<=200;i++){
     let ok=null, ok2x=null;
-    const n = String(i), n0 = n.padStart(2,'0');
-    const bases=[`${ASSETS}page-${n0}`,`${ASSETS}${n0}`,`${ASSETS}${n}`];
+    const n=String(i), n0=n.padStart(2,'0');
+    const bases=[`${ASSETS}page-${n0}`, `${ASSETS}${n0}`, `${ASSETS}${n}`];
     for(const b of bases){
       for(const ext of EXT_LIST){
         const cand=`${b}.${ext}`;
@@ -110,10 +124,9 @@ async function autoDetectPages(){
       if(ok) break;
     }
     if(!ok) break;
-    // @2x（可選）
-    const dot = ok.lastIndexOf('.');
-    const hi  = `${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
-    if(await headOk(hi)) ok2x = hi;
+    const dot=ok.lastIndexOf('.');
+    const hi=`${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
+    if(await headOk(hi)) ok2x=hi;
     found.push(ok); found2x.push(ok2x);
   }
   return {found, found2x};
@@ -136,7 +149,8 @@ function renderBook(){
     sheet.appendChild(f); sheet.appendChild(b); book.appendChild(sheet); sheets.push(sheet);
   }
   updateNav();
-  byId('spinner').style.display='none';
+  // 關閉 loading
+  byId('loader').style.display='none';
 }
 
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
@@ -156,13 +170,14 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-// ✅ 極速首屏：先把第一頁直接丟給 <img>，同時在背景偵測所有頁
+// 🚀 極速首屏：
+// 1) 先顯示 page-01.png
+// 2) 立刻跑 confetti（載入中也有）
+// 3) 背景偵測所有頁，完成後 render + 關閉 loader
 (async function fastBoot(){
-  const firstUrl = firstGuessUrl();
+  runConfetti(2200); // 載入時保留彩花
   const img = byId('baseA');
-  img.src = firstUrl; // 不等待 HEAD，立刻開始載入顯示
-  img.addEventListener('load', ()=> { /* 首頁畫面已出 */ }, {once:true});
-  // 立刻開始探測所有頁
+  img.src = firstGuessUrl(); // 直接載入第一張
   const det = await autoDetectPages();
   PAGES = det.found;
   byId('pageTotal').textContent = PAGES.length || '—';
@@ -170,8 +185,15 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   bindNav();
 })();
 
-// share
-byId('shareBtn').onclick=async ()=>{const url=location.href; try{if(navigator.share)await navigator.share({title:'Card',text:'來看看我們的心意！',url}); else if(navigator.clipboard){await navigator.clipboard.writeText(url);alert('連結已複製')} else {const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert('連結已複製')}}catch(e){}}
+// 分享：固定連結
+byId('shareBtn').onclick=async ()=>{
+  const url=SHARE_URL;
+  try{
+    if(navigator.share) await navigator.share({title:'Card',text:'來看看我們的心意！',url});
+    else if(navigator.clipboard){ await navigator.clipboard.writeText(url); alert('連結已複製'); }
+    else { const ta=document.createElement('textarea'); ta.value=url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('連結已複製'); }
+  }catch(e){}
+};
 </script>
 </body>
 </html>
