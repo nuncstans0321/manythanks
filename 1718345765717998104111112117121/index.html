@@ -8,18 +8,17 @@
   :root{ --flip-next-ms:2080; --flip-prev-ms:2350; --ease-next:cubic-bezier(.12,.70,.12,1); --ease-prev:cubic-bezier(.15,.75,.10,1); }
   html,body{height:100%;margin:0}
   body{background:#0b0b0f;color:#b6ffb6;font-family:Segoe UI,Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
-  /* 全螢幕彩花 */
   #confettiFS{position:fixed;inset:0;pointer-events:none;z-index:100}
   .wrap{width:min(92vw,980px)}
   .card{position:relative;border:1px solid #2a8a57;border-radius:12px;padding:10px;background:#0e1614;box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .topbar{display:flex;justify-content:flex-end;margin-bottom:8px}
   .btn{background:#0f1614;color:#b6ffb6;border:1px solid #2a8a57;padding:8px 12px;border-radius:10px;cursor:pointer}
-  .btn:hover{background:#12221a}
   .stage{position:relative;background:#0b1412;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
   .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412; box-sizing:border-box;}
-  /* 只有桌機留更寬鬆邊距，避免長邊貼邊 */
+  /* 桌機版：加大「安全邊」避免長邊貼邊 */
   @media (min-width: 900px){
-    .stage-inner{padding:14px}
+    .stage-inner{ padding: clamp(18px, 2.4vw, 36px); }
+    .base img, .sheet .paper img{ box-sizing:border-box; padding: clamp(14px, 2.0vw, 28px); }
   }
   .base{position:absolute;inset:0}
   .base img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease;background:#0b1412}
@@ -30,14 +29,13 @@
   .sheet .paper{position:absolute;inset:0;transform-origin:left}
   .sheet .paper img{width:100%;height:100%;object-fit:contain;display:block;background:#0b1412;border-radius:6px}
   .sheet .back{transform:rotateY(180deg)}
-  .sheet.idle .front{visibility:hidden} /* 未翻頁前不要露出第2頁 */
+  .sheet.idle .front{visibility:hidden}
   .sheet.flipped{transform:translateX(-100%) rotateY(-180deg);transition:transform var(--dur) var(--ease)}
   .nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
   .arrow{pointer-events:auto;user-select:none;background:rgba(15,22,20,.75);border:1px solid #2a8a57;width:42px;height:42px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .arrow.hidden{visibility:hidden}
   .footer{display:flex;justify-content:center;gap:10px;margin-top:8px}
   .pageinfo{font-variant-numeric:tabular-nums;opacity:.85}
-  /* Loading Overlay */
   .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:50;background:transparent}
   .loader .box{display:flex;gap:10px;align-items:center;background:rgba(11,20,18,.66);border:1px solid #2a8a57;padding:10px 14px;border-radius:10px}
   .spinner{width:18px;height:18px;border:3px solid rgba(182,255,182,.25);border-top-color:#b6ffb6;border-radius:50%;animation:sp 1s linear infinite}
@@ -69,18 +67,16 @@
 </div>
 <audio id="flipAudio" preload="auto"></audio>
 <script>
-// ---------- CONFIG ----------
 const ASSETS = new URL('../assets/book/', location.href).href;
 const EXT_LIST = ['png','jpg','jpeg','webp'];
 const EASE_NEXT = 'cubic-bezier(.12,.70,.12,1)';
 const EASE_PREV = 'cubic-bezier(.15,.75,.10,1)';
 const SHARE_URL = 'https://nuncstans0321.github.io/manythanks/';
-// ----------------------------
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
 function byId(id){return document.getElementById(id)}
 
-// 全螢幕彩花
-function runConfetti(duration=1800){
+// 彩花（載入中也會跑）
+function runConfetti(duration=2200){
   const c=byId('confettiFS'),x=c.getContext('2d');
   function rs(){c.width=innerWidth;c.height=innerHeight} rs(); addEventListener('resize',rs);
   const cols=['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
@@ -91,12 +87,10 @@ function runConfetti(duration=1800){
   requestAnimationFrame(tick);
 }
 
-// 先直接顯示猜測的第一張（page-01.png）
 function firstGuessUrl(){return `${ASSETS}page-01.png`;}
 
 async function headOk(url){try{const r=await fetch(url,{method:'HEAD',cache:'reload'});return r.ok}catch(e){return false}}
 
-// 偵測所有頁：優先 page-01.* → 01.* → 1.*
 async function autoDetectPages(){
   const found=[], found2x=[];
   // 第一頁
@@ -111,21 +105,21 @@ async function autoDetectPages(){
   }
   if(!ok1) return {found, found2x};
   found.push(ok1);
-  // 後續頁
+  // 其他頁（平行檢索，加速）
   for(let i=2;i<=200;i++){
     let ok=null, ok2x=null;
     const n=String(i), n0=n.padStart(2,'0');
     const bases=[`${ASSETS}page-${n0}`, `${ASSETS}${n0}`, `${ASSETS}${n}`];
-    for(const b of bases){
-      for(const ext of EXT_LIST){
-        const cand=`${b}.${ext}`;
-        if(await headOk(cand)){ ok=cand; break; }
-      }
-      if(ok) break;
-    }
+    // 平行測試三種命名與四種副檔名
+    const candidates=[];
+    for(const b of bases){ for(const ext of EXT_LIST){ candidates.push(`${b}.${ext}`); } }
+    // 依序 HEAD，但用 Promise.any 快速返回第一個成功者
+    try{
+      const resp = await Promise.any(candidates.map(u=>headOk(u).then(ok=>ok?u:Promise.reject())));
+      ok = resp;
+    }catch(e){ ok = null; }
     if(!ok) break;
-    const dot=ok.lastIndexOf('.');
-    const hi=`${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
+    const dot=ok.lastIndexOf('.'); const hi=`${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
     if(await headOk(hi)) ok2x=hi;
     found.push(ok); found2x.push(ok2x);
   }
@@ -149,8 +143,6 @@ function renderBook(){
     sheet.appendChild(f); sheet.appendChild(b); book.appendChild(sheet); sheets.push(sheet);
   }
   updateNav();
-  // 關閉 loading
-  byId('loader').style.display='none';
 }
 
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
@@ -170,14 +162,16 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-// 🚀 極速首屏：
-// 1) 先顯示 page-01.png
-// 2) 立刻跑 confetti（載入中也有）
-// 3) 背景偵測所有頁，完成後 render + 關閉 loader
+// 🚀 極速首屏：第一張立刻顯示；loader 提前關閉；掃描在背景並行
 (async function fastBoot(){
-  runConfetti(2200); // 載入時保留彩花
+  runConfetti(2200);
+  const loader = byId('loader');
   const img = byId('baseA');
-  img.src = firstGuessUrl(); // 直接載入第一張
+  img.src = firstGuessUrl();
+  // 第一張載入就先關 loading（最多 1.8s 保險關）
+  const safeClose = setTimeout(()=> loader.style.display='none', 1800);
+  img.addEventListener('load', ()=>{ loader.style.display='none'; clearTimeout(safeClose); }, {once:true});
+
   const det = await autoDetectPages();
   PAGES = det.found;
   byId('pageTotal').textContent = PAGES.length || '—';
@@ -185,7 +179,7 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   bindNav();
 })();
 
-// 分享：固定連結
+// 分享固定網址
 byId('shareBtn').onclick=async ()=>{
   const url=SHARE_URL;
   try{
