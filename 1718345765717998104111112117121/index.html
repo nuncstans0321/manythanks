@@ -175,14 +175,13 @@ async function autoDetectPages() {
   const found = [], found2x = [];
   for (let i=1; i<=80; i++) {
   let ok = null, ok2x = null;
-  const baseNoExt = ASSETS + String(i);         // 1, 2, 3…
   for (const ext of EXT_LIST) {
-    const cand = `${baseNoExt}.${ext}`;         // 1.png / 1.jpg…
-    if (await headOk(cand)) { ok = cand; break; }
+    const base = ASSETS + 'page-' + String(i).padStart(2,'0') + '.';
+    if (await headOk(base)) { ok = base; break; }
   }
   if (!ok) break;
   const dot = ok.lastIndexOf('.');
-  const hi = ok.slice(0, dot) + '@2x' + ok.slice(dot); // 1@2x.png（可選）
+  const hi = ok.slice(0, dot) + '@2x' + ok.slice(dot);
   if (await headOk(hi)) ok2x = hi;
   found.push(ok); found2x.push(ok2x);
 }
