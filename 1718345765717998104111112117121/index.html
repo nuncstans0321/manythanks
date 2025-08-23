@@ -5,13 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Card</title>
 <style>
-  :root{
-    --flip-next-ms: 2080;
-    --flip-prev-ms: 2350;
-    --ease-next: cubic-bezier(.12,.70,.12,1);
-    --ease-prev: cubic-bezier(.15,.75,.10,1);
-  }
-  html, body {height:100%; margin:0}
+  :root{ --flip-next-ms:2080; --flip-prev-ms:2350; --ease-next:cubic-bezier(.12,.70,.12,1); --ease-prev:cubic-bezier(.15,.75,.10,1); }
+  html,body{height:100%;margin:0}
   body{background:#0b0b0f;color:#b6ffb6;font-family:Segoe UI,Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
   .wrap{width:min(92vw,980px)}
   .card{position:relative;border:1px solid #2a8a57;border-radius:12px;padding:10px;background:#0e1614;box-shadow:0 1px 2px rgba(0,0,0,.4)}
@@ -21,21 +16,23 @@
   .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412}
   .base{position:absolute;inset:0}
   .base img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease;background:#0b1412}
-  #baseA{opacity:1}#baseB{opacity:0}
+  #baseA{opacity:1} #baseB{opacity:0}
   .book{position:absolute;inset:0;perspective:1800px}
   .sheet{position:absolute;inset:0;transform-style:preserve-3d;transform-origin:left}
   .sheet .face{position:absolute;inset:0;backface-visibility:hidden;overflow:hidden;background:#0b1412;border-radius:6px}
   .sheet .paper{position:absolute;inset:0;transform-origin:left}
   .sheet .paper img{width:100%;height:100%;object-fit:contain;display:block;background:#0b1412;border-radius:6px}
   .sheet .back{transform:rotateY(180deg)}
-  /* 讓第二頁在未翻頁前不顯示 */
-  .sheet.idle .front{visibility:hidden}
+  .sheet.idle .front{visibility:hidden} /* 未翻頁前不要露出第2頁 */
   .sheet.flipped{transform:translateX(-100%) rotateY(-180deg);transition:transform var(--dur) var(--ease)}
   .nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
   .arrow{pointer-events:auto;user-select:none;background:rgba(15,22,20,.75);border:1px solid #2a8a57;width:42px;height:42px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer}
   .arrow.hidden{visibility:hidden}
   .footer{display:flex;justify-content:center;gap:10px;margin-top:8px}
   .pageinfo{font-variant-numeric:tabular-nums;opacity:.85}
+  .spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .spinner:after{content:"";width:32px;height:32px;border:3px solid rgba(182,255,182,.25);border-top-color:#b6ffb6;border-radius:50%;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(1turn)}}
 </style>
 </head>
 <body>
@@ -44,7 +41,11 @@
     <div class="topbar"><button id="shareBtn" class="btn">🔗 分享</button></div>
     <div class="stage">
       <div class="stage-inner">
-        <div class="base"><img id="baseA" alt=""><img id="baseB" alt=""></div>
+        <div class="base">
+          <div class="spinner" id="spinner"></div>
+          <img id="baseA" alt="" loading="eager" fetchpriority="high" decoding="async">
+          <img id="baseB" alt="" loading="eager" fetchpriority="low" decoding="async">
+        </div>
         <div id="book" class="book"></div>
         <div class="nav">
           <div id="prevBtn" class="arrow hidden" title="上一頁"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#b6ffb6" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></div>
@@ -58,27 +59,49 @@
 <audio id="flipAudio" preload="auto"></audio>
 <script>
 // ---------- CONFIG ----------
-const ASSETS = new URL('../assets/book/', location.href).href; // 絕對路徑
+const ASSETS = new URL('../assets/book/', location.href).href;
 const EXT_LIST = ['png','jpg','jpeg','webp'];
 const EASE_NEXT = 'cubic-bezier(.12,.70,.12,1)';
 const EASE_PREV = 'cubic-bezier(.15,.75,.10,1)';
 // ----------------------------
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
 
+function byId(id){return document.getElementById(id)}
+
+// 先直接顯示猜測的第一張（page-01.png），讓首屏不等待
+function firstGuessUrl(){
+  const n01 = '01';
+  return `${ASSETS}page-${n01}.png`; // 你的命名
+}
+
 async function headOk(url){
   try{
-    const r=await fetch(url,{method:'HEAD',cache:'reload'}); // HEAD 更快，允許快取
+    const r=await fetch(url,{method:'HEAD',cache:'reload'});
     return r.ok;
   }catch(e){return false}
 }
 
-// 優先嘗試 page-01.*（你的檔名），再試 01.* / 1.*
+// 發現所有頁：優先 page-01.*，成功後再偵測 02… 以此類推
 async function autoDetectPages(){
   const found=[], found2x=[];
-  for(let i=1;i<=80;i++){
+  // 先處理 1
+  const n1='1', n01='01';
+  const order1=[`${ASSETS}page-${n01}`, `${ASSETS}${n01}`, `${ASSETS}${n1}`];
+  let ok1=null;
+  for(const b of order1){
+    for(const ext of EXT_LIST){
+      const cand=`${b}.${ext}`;
+      if(await headOk(cand)){ ok1=cand; break; }
+    }
+    if(ok1) break;
+  }
+  if(!ok1) return {found, found2x}; // 沒圖就空
+  found.push(ok1);
+  // 其餘頁
+  for(let i=2;i<=200;i++){
     let ok=null, ok2x=null;
-    const n1=String(i), n01=n1.padStart(2,'0');
-    const bases=[`${ASSETS}page-${n01}`,`${ASSETS}${n01}`,`${ASSETS}${n1}`];
+    const n = String(i), n0 = n.padStart(2,'0');
+    const bases=[`${ASSETS}page-${n0}`,`${ASSETS}${n0}`,`${ASSETS}${n}`];
     for(const b of bases){
       for(const ext of EXT_LIST){
         const cand=`${b}.${ext}`;
@@ -87,25 +110,22 @@ async function autoDetectPages(){
       if(ok) break;
     }
     if(!ok) break;
+    // @2x（可選）
     const dot = ok.lastIndexOf('.');
     const hi  = `${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
-    if(await headOk(hi)) ok2x=hi;
+    if(await headOk(hi)) ok2x = hi;
     found.push(ok); found2x.push(ok2x);
   }
   return {found, found2x};
 }
 
-function byId(id){return document.getElementById(id)}
 function setImg(el, url){el.removeAttribute('srcset'); el.src=url}
-
 function renderBook(){
   const book=byId('book'); book.innerHTML=''; sheets=[]; sheetIndex=0;
   byId('pageTotal').textContent=PAGES.length||'—';
   byId('pageNow').textContent=PAGES.length?'1':'0';
   if(!PAGES.length){byId('prevBtn').classList.add('hidden');byId('nextBtn').classList.add('hidden');return}
-  // 先顯示第一頁
   setImg(byId('baseA'), PAGES[0]); byId('baseA').style.opacity='1'; byId('baseB').style.opacity='0'; baseTop='A';
-  // 建 sheet，預設 idle -> 正面（第二頁）隱藏
   const total=PAGES.length-1;
   for(let s=0;s<total;s++){
     const sheet=document.createElement('div'); sheet.className='sheet idle'; sheet.style.zIndex=(total-s)+5;
@@ -116,6 +136,7 @@ function renderBook(){
     sheet.appendChild(f); sheet.appendChild(b); book.appendChild(sheet); sheets.push(sheet);
   }
   updateNav();
+  byId('spinner').style.display='none';
 }
 
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
@@ -125,8 +146,8 @@ function updateNav(){byId('prevBtn').classList.toggle('hidden',atStart());byId('
 function crossfadeTo(i){const A=byId('baseA'),B=byId('baseB'),topIsA=(baseTop==='A');const topEl=topIsA?A:B,bottomEl=topIsA?B:A;setImg(bottomEl,PAGES[i]);bottomEl.style.opacity='1';topEl.style.opacity='0';baseTop=topIsA?'B':'A'}
 function playFlip(){const a=byId('flipAudio');try{a.currentTime=0;a.play()}catch(e){}}
 
-async function nextPage(){ if(atEnd())return; const D=2080*1.15; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_NEXT}`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
-async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.15; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_PREV}`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
+async function nextPage(){ if(atEnd())return; const D=2080*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_NEXT}`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
+async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.10; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_PREV}`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
 
 function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclick=()=>prevPage();
   document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage()});
@@ -135,12 +156,22 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-async function init(){
-  const det=await autoDetectPages(); PAGES=det.found;
-  byId('pageTotal').textContent=PAGES.length||'—';
-  renderBook(); bindNav();
-}
-init();
+// ✅ 極速首屏：先把第一頁直接丟給 <img>，同時在背景偵測所有頁
+(async function fastBoot(){
+  const firstUrl = firstGuessUrl();
+  const img = byId('baseA');
+  img.src = firstUrl; // 不等待 HEAD，立刻開始載入顯示
+  img.addEventListener('load', ()=> { /* 首頁畫面已出 */ }, {once:true});
+  // 立刻開始探測所有頁
+  const det = await autoDetectPages();
+  PAGES = det.found;
+  byId('pageTotal').textContent = PAGES.length || '—';
+  renderBook();
+  bindNav();
+})();
+
+// share
+byId('shareBtn').onclick=async ()=>{const url=location.href; try{if(navigator.share)await navigator.share({title:'Card',text:'來看看我們的心意！',url}); else if(navigator.clipboard){await navigator.clipboard.writeText(url);alert('連結已複製')} else {const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert('連結已複製')}}catch(e){}}
 </script>
 </body>
 </html>
