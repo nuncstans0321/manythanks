@@ -10,18 +10,13 @@
     --flip-prev-ms: 2350;
     --ease-next: cubic-bezier(.12,.70,.12,1);
     --ease-prev: cubic-bezier(.15,.75,.10,1);
-    --shade-alpha: .42;
-    --curl-alpha: .30;
-    --edge-shadow-alpha: .40;
   }
   html, body {height:100%; margin:0}
   body{background:#0b0b0f;color:#b6ffb6;font-family:Segoe UI,Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}
-  #confettiFS{position:fixed;inset:0;pointer-events:none;z-index:100}
   .wrap{width:min(92vw,980px)}
   .card{position:relative;border:1px solid #2a8a57;border-radius:12px;padding:10px;background:#0e1614;box-shadow:0 1px 2px rgba(0,0,0,.4)}
   .topbar{display:flex;justify-content:flex-end;margin-bottom:8px}
   .btn{background:#0f1614;color:#b6ffb6;border:1px solid #2a8a57;padding:8px 12px;border-radius:10px;cursor:pointer}
-  .btn:hover{background:#12221a}
   .stage{position:relative;background:#0b1412;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center}
   .stage-inner{position:relative;width:min(78vw,760px);aspect-ratio:3/4;background:#0b1412}
   .base{position:absolute;inset:0}
@@ -33,6 +28,8 @@
   .sheet .paper{position:absolute;inset:0;transform-origin:left}
   .sheet .paper img{width:100%;height:100%;object-fit:contain;display:block;background:#0b1412;border-radius:6px}
   .sheet .back{transform:rotateY(180deg)}
+  /* 讓第二頁在未翻頁前不顯示 */
+  .sheet.idle .front{visibility:hidden}
   .sheet.flipped{transform:translateX(-100%) rotateY(-180deg);transition:transform var(--dur) var(--ease)}
   .nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
   .arrow{pointer-events:auto;user-select:none;background:rgba(15,22,20,.75);border:1px solid #2a8a57;width:42px;height:42px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer}
@@ -42,15 +39,12 @@
 </style>
 </head>
 <body>
-<canvas id="confettiFS"></canvas>
 <div class="wrap">
   <div class="card">
     <div class="topbar"><button id="shareBtn" class="btn">🔗 分享</button></div>
     <div class="stage">
       <div class="stage-inner">
-        <div class="base">
-          <img id="baseA" alt=""><img id="baseB" alt="">
-        </div>
+        <div class="base"><img id="baseA" alt=""><img id="baseB" alt=""></div>
         <div id="book" class="book"></div>
         <div class="nav">
           <div id="prevBtn" class="arrow hidden" title="上一頁"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#b6ffb6" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></div>
@@ -71,25 +65,30 @@ const EASE_PREV = 'cubic-bezier(.15,.75,.10,1)';
 // ----------------------------
 let PAGES=[], sheetIndex=0, sheets=[], baseTop='A';
 
-async function headOk(url){try{const r=await fetch(url,{method:'GET',cache:'no-store'});return r.ok}catch(e){return false}}
+async function headOk(url){
+  try{
+    const r=await fetch(url,{method:'HEAD',cache:'reload'}); // HEAD 更快，允許快取
+    return r.ok;
+  }catch(e){return false}
+}
 
-// 同時支援 1.* / 01.* / page-01.*
+// 優先嘗試 page-01.*（你的檔名），再試 01.* / 1.*
 async function autoDetectPages(){
   const found=[], found2x=[];
   for(let i=1;i<=80;i++){
     let ok=null, ok2x=null;
     const n1=String(i), n01=n1.padStart(2,'0');
-    const bases=[`${ASSETS}${n1}`,`${ASSETS}${n01}`,`${ASSETS}page-${n01}`];
+    const bases=[`${ASSETS}page-${n01}`,`${ASSETS}${n01}`,`${ASSETS}${n1}`];
     for(const b of bases){
       for(const ext of EXT_LIST){
         const cand=`${b}.${ext}`;
-        if(await headOk(cand)){ok=cand;break;}
+        if(await headOk(cand)){ ok=cand; break; }
       }
-      if(ok)break;
+      if(ok) break;
     }
-    if(!ok)break;
-    const dot=ok.lastIndexOf('.');
-    const hi=`${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
+    if(!ok) break;
+    const dot = ok.lastIndexOf('.');
+    const hi  = `${ok.slice(0,dot)}@2x${ok.slice(dot)}`;
     if(await headOk(hi)) ok2x=hi;
     found.push(ok); found2x.push(ok2x);
   }
@@ -97,16 +96,19 @@ async function autoDetectPages(){
 }
 
 function byId(id){return document.getElementById(id)}
-function setImg(el, url){el.removeAttribute('srcset');el.src=url}
+function setImg(el, url){el.removeAttribute('srcset'); el.src=url}
+
 function renderBook(){
   const book=byId('book'); book.innerHTML=''; sheets=[]; sheetIndex=0;
   byId('pageTotal').textContent=PAGES.length||'—';
   byId('pageNow').textContent=PAGES.length?'1':'0';
   if(!PAGES.length){byId('prevBtn').classList.add('hidden');byId('nextBtn').classList.add('hidden');return}
+  // 先顯示第一頁
   setImg(byId('baseA'), PAGES[0]); byId('baseA').style.opacity='1'; byId('baseB').style.opacity='0'; baseTop='A';
+  // 建 sheet，預設 idle -> 正面（第二頁）隱藏
   const total=PAGES.length-1;
   for(let s=0;s<total;s++){
-    const sheet=document.createElement('div'); sheet.className='sheet'; sheet.style.zIndex=(total-s)+5;
+    const sheet=document.createElement('div'); sheet.className='sheet idle'; sheet.style.zIndex=(total-s)+5;
     const f=document.createElement('div'); f.className='face front';
     const fp=document.createElement('div'); fp.className='paper'; const fi=document.createElement('img'); fi.src=PAGES[s+1]; fp.appendChild(fi); f.appendChild(fp);
     const b=document.createElement('div'); b.className='face back';
@@ -115,6 +117,7 @@ function renderBook(){
   }
   updateNav();
 }
+
 function currentPage(){return Math.min(PAGES.length, sheetIndex+1)}
 function updateInfo(){byId('pageNow').textContent=String(currentPage())}
 function atStart(){return sheetIndex===0} function atEnd(){return sheetIndex>=sheets.length}
@@ -122,8 +125,8 @@ function updateNav(){byId('prevBtn').classList.toggle('hidden',atStart());byId('
 function crossfadeTo(i){const A=byId('baseA'),B=byId('baseB'),topIsA=(baseTop==='A');const topEl=topIsA?A:B,bottomEl=topIsA?B:A;setImg(bottomEl,PAGES[i]);bottomEl.style.opacity='1';topEl.style.opacity='0';baseTop=topIsA?'B':'A'}
 function playFlip(){const a=byId('flipAudio');try{a.currentTime=0;a.play()}catch(e){}}
 
-async function nextPage(){ if(atEnd())return; const D=2080*1.15; const sh=sheets[sheetIndex]; sh.style.transition=`transform ${D}ms ${EASE_NEXT}`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
-async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.15; const sh=sheets[sheetIndex]; sh.style.transition=`transform ${D}ms ${EASE_PREV}`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
+async function nextPage(){ if(atEnd())return; const D=2080*1.15; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_NEXT}`; requestAnimationFrame(()=>sh.classList.add('flipped')); sh.style.zIndex=(5+sheetIndex); sheetIndex++; setTimeout(()=>crossfadeTo(sheetIndex), D*0.12); updateInfo(); updateNav(); playFlip(); }
+async function prevPage(){ if(atStart())return; sheetIndex--; const D=2350*1.15; const sh=sheets[sheetIndex]; sh.classList.remove('idle'); sh.style.transition=`transform ${D}ms ${EASE_PREV}`; sh.classList.remove('flipped'); sh.style.zIndex=(sheets.length-sheetIndex)+5; setTimeout(()=>crossfadeTo(sheetIndex), D*0.10); updateInfo(); updateNav(); playFlip(); }
 
 function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclick=()=>prevPage();
   document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')nextPage();if(e.key==='ArrowLeft')prevPage()});
@@ -132,26 +135,12 @@ function bindNav(){byId('nextBtn').onclick=()=>nextPage();byId('prevBtn').onclic
   el.addEventListener('touchend',e=>{if(sx==null)return;const t=e.changedTouches[0];const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-t0;sx=null;if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)&&dt<800){if(dx<0)nextPage();else prevPage();}});
 }
 
-function runConfetti(duration=1400){
-  const c=document.getElementById('confettiFS'),x=c.getContext('2d');
-  function rs(){c.width=innerWidth;c.height=innerHeight} rs(); addEventListener('resize',rs);
-  const cols=['#ffdf6e','#ff9aa2','#9ec9ff','#b5f5a3','#ffd1dc','#c5b3ff'];
-  const N=Math.round((c.width*c.height)/30000)+50;
-  const parts=Array.from({length:N},(_,i)=>({x:Math.random()*c.width,y:-10-Math.random()*c.height*.3,r:3+Math.random()*4,c:cols[i%cols.length],vx:-1+Math.random()*2,vy:1+Math.random()*2.5,a:Math.random()*Math.PI*2,va:-.2+Math.random()*.4}));
-  const st=performance.now();
-  function tick(t){const el=t-st;x.clearRect(0,0,c.width,c.height);parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.a+=p.va;x.save();x.translate(p.x,p.y);x.rotate(p.a);x.fillStyle=p.c;x.fillRect(-p.r,-p.r,p.r*2,p.r*2);x.restore();if(p.y>c.height+20){p.y=-10;p.x=Math.random()*c.width;}}); if(el<duration)requestAnimationFrame(tick); else x.clearRect(0,0,c.width,c.height);}
-  requestAnimationFrame(tick);
-}
-
 async function init(){
   const det=await autoDetectPages(); PAGES=det.found;
   byId('pageTotal').textContent=PAGES.length||'—';
-  renderBook(); bindNav(); setTimeout(()=>runConfetti(1400),200);
+  renderBook(); bindNav();
 }
 init();
-
-// share
-byId('shareBtn').onclick=async ()=>{const url=location.href; try{if(navigator.share)await navigator.share({title:'Card',text:'來看看我們的心意！',url}); else if(navigator.clipboard){await navigator.clipboard.writeText(url);alert('連結已複製')} else {const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();alert('連結已複製')}}catch(e){}}
 </script>
 </body>
 </html>
